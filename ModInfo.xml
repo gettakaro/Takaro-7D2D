@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <xml>
-	<Name value="Catalysm" />
-	<DisplayName value="Catalysm" />
-	<Description value="Takaro logging" />
-	<Author value="Catalysm" />
+	<Name value="Takaro7D2D" />
+	<DisplayName value="Takaro7D2D" />
+	<Description value="Takaro companion mod" />
+	<Author value="Takaro" />
 	<Version value="1.0" />
-	<Website value=""/>
+	<Website value="https://takaro.io"/>
 </xml>

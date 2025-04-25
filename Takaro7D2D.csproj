@@ -7,8 +7,8 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>{771240CA-9B22-4AFE-A422-959E74B645B2}</ProjectGuid>
     <OutputType>Library</OutputType>
-    <RootNamespace>Catalysm</RootNamespace>
-    <AssemblyName>Catalysm</AssemblyName>
+    <RootNamespace>Takaro7D2D</RootNamespace>
+    <AssemblyName>Takaro7D2D</AssemblyName>
     <UseMSBuildEngine>True</UseMSBuildEngine>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <NuGetPackageImportStamp>
@@ -17,7 +17,7 @@
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <Optimize>true</Optimize>
-    <OutputPath>bin\Mods\Catalysm\</OutputPath>
+    <OutputPath>bin\Mods\Takaro7D2D\</OutputPath>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <ConsolePause>false</ConsolePause>
@@ -33,51 +33,49 @@
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ItemGroup>
     <Reference Include="0Harmony">
-      <HintPath>7dtd-binaries\0Harmony.dll</HintPath>
+      <HintPath>_data\7dtd-binaries\0Harmony.dll</HintPath>
     </Reference>
     <Reference Include="Assembly-CSharp">
-      <HintPath>7dtd-binaries\Assembly-CSharp.dll</HintPath>
+      <HintPath>_data\7dtd-binaries\Assembly-CSharp.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Assembly-CSharp-firstpass">
-      <HintPath>7dtd-binaries\Assembly-CSharp-firstpass.dll</HintPath>
+      <HintPath>_data\7dtd-binaries\Assembly-CSharp-firstpass.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="com.rlabrecque.steamworks.net">
-      <HintPath>7dtd-binaries\com.rlabrecque.steamworks.net.dll</HintPath>
+      <HintPath>_data\7dtd-binaries\com.rlabrecque.steamworks.net.dll</HintPath>
     </Reference>
     <Reference Include="LogLibrary">
-      <HintPath>7dtd-binaries\LogLibrary.dll</HintPath>
+      <HintPath>_data\7dtd-binaries\LogLibrary.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="mscorlib">
-      <HintPath>..\7dtd-binaries\mscorlib.dll</HintPath>
+      <HintPath>_data\7dtd-binaries\mscorlib.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="System">
-      <HintPath>..\7dtd-binaries\System.dll</HintPath>
+      <HintPath>_data\7dtd-binaries\System.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="System.Drawing" />
     <Reference Include="System.Runtime" />
     <Reference Include="System.Xml" />
     <Reference Include="UnityEngine">
-      <HintPath>7dtd-binaries\UnityEngine.dll</HintPath>
+      <HintPath>_data\7dtd-binaries\UnityEngine.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>7dtd-binaries\UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>_data\7dtd-binaries\UnityEngine.CoreModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.ImageConversionModule">
-      <HintPath>7dtd-binaries\UnityEngine.ImageConversionModule.dll</HintPath>
+      <HintPath>_data\7dtd-binaries\UnityEngine.ImageConversionModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="src\API.cs" />
-    <Compile Include="src\DamageHandler.cs" />
-    <Compile Include="src\Patcher.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ModInfo.xml">

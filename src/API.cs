@@ -1,9 +1,8 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Catalysm
+namespace Takaro7D2D
 {
-
     public class API : IModApi
     {
         public void InitMod(Mod mod)
@@ -20,25 +19,22 @@ namespace Catalysm
             ModEvents.CalcChunkColorsDone.RegisterHandler(CalcChunkColorsDone);
         }
 
-        private bool GameMessage(ClientInfo _cInfo, EnumGameMessages _type, string _msg, string _mainName, bool _localizeMain, string _secondaryName, bool _localizeSecondary)
+        private bool GameMessage(ClientInfo cInfo, EnumGameMessages type, string msg, string mainName, string secondaryName)
         {
-            
             return true;
         }
 
         private void GameAwake()
         {
-            Patcher.DoPatching();
+            
         }
 
         private void GameShutdown()
         {
-            
         }
 
-        private void PlayerDisconnected(ClientInfo _cInfo, bool _bShutdown)
+        private void PlayerDisconnected(ClientInfo cInfo, bool bShutdown)
         {
-            
         }
 
         public void EntityKilled(Entity entKilled, Entity entOffender)
@@ -49,51 +45,41 @@ namespace Catalysm
                 {
                     ClientInfo ci = ConsoleHelper.ParseParamIdOrName(entOffender.entityId.ToString());
                     if (ci == null) return;
-
                     EntityAlive ea = entKilled as EntityAlive;
-
                     int? entID = entOffender.entityId;
-
-                    string weap = DamageHandler.weaponUsed(entID);
-
+                    
                     if (entKilled.entityType == EntityType.Zombie)
                     {
-                        Log.Out($"[Catalysm]entityKilled: {ci.playerName} ({ci.PlatformId}) killed zombie {ea.EntityName} with {weap}");
+                        Log.Out($"[Catalysm]entityKilled: {ci.playerName} ({ci.PlatformId}) killed zombie {ea.EntityName} with unknown weapon");
                     }
                     else
                     {
-                        Log.Out($"[Catalysm]entityKilled: {ci.playerName} ({ci.PlatformId}) killed animal {ea.EntityName} with {weap}");
+                        Log.Out($"[Catalysm]entityKilled: {ci.playerName} ({ci.PlatformId}) killed animal {ea.EntityName} with unknown weapon");
                     }
                 }
             }
         }
 
-        private void PlayerSpawnedInWorld(ClientInfo _cInfo, RespawnType _respawnReason, Vector3i _pos)
+        private void PlayerSpawnedInWorld(ClientInfo cInfo, RespawnType respawnReason, Vector3i pos)
         {
-            
         }
 
-        private void SavePlayerData(ClientInfo _cInfo, PlayerDataFile _playerDataFile)
+        private void SavePlayerData(ClientInfo cInfo, PlayerDataFile playerDataFile)
         {
-            
         }
 
-        private bool PlayerLogin(ClientInfo _cInfo, string _compatibilityVersion, StringBuilder sb)
+        private bool PlayerLogin(ClientInfo cInfo, string compatibilityVersion, StringBuilder sb)
         {
-            
             return true;
         }
 
-        private bool ChatMessage(ClientInfo _cInfo, EChatType _type, int _senderId, string _msg, string _mainName, bool _localizeMain, List<int> _recipientEntityIds)
+        private bool ChatMessage(ClientInfo cInfo, EChatType type, int senderId, string msg, string mainName, List<int> recipientEntityIds)
         {
-            
             return true;
         }
 
-        private void CalcChunkColorsDone(Chunk _chunk)
+        private void CalcChunkColorsDone(Chunk chunk)
         {
-            
         }
     }
 }
-
