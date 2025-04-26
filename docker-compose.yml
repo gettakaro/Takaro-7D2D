@@ -2,6 +2,7 @@ services:
   # SteamCMD service for downloading game files
   steamcmd:
     image: cm2network/steamcmd:latest
+    user: "${UID:-1000}:${GID:-1000}"
     volumes:
       - ./_data/game-files:/game
     command: >

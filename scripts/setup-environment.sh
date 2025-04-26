@@ -13,6 +13,8 @@ docker compose run --rm steamcmd
 # Verify that the server files were downloaded
 if [ ! -d "./_data/game-files/7DaysToDieServer_Data" ]; then
   echo "Error: 7D2D server files not found. Please check the SteamCMD output."
+  echo "Contents of _data/"
+  ls -l ./_data
   echo "Contents of _data/game-files:"
   ls -l ./_data/game-files
   exit 1
