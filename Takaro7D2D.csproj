@@ -73,14 +73,24 @@
       <HintPath>_data\7dtd-binaries\UnityEngine.ImageConversionModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="websocket-sharp">
+      <HintPath>_data\7dtd-binaries\websocket-sharp.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Runtime.Serialization" />    
   </ItemGroup>
   <ItemGroup>
     <Compile Include="src\API.cs" />
+    <Compile Include="src\WebSocket\WebSocketClient.cs" />
+    <Compile Include="src\WebSocket\WebSocketMessage.cs" />
+    <Compile Include="src\Config\ConfigManager.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ModInfo.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <SubType>Designer</SubType>
+    </None>
+    <None Include="Config.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
   <ItemGroup />
