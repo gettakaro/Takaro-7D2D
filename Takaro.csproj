@@ -7,8 +7,8 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>{771240CA-9B22-4AFE-A422-959E74B645B2}</ProjectGuid>
     <OutputType>Library</OutputType>
-    <RootNamespace>Takaro7D2D</RootNamespace>
-    <AssemblyName>Takaro7D2D</AssemblyName>
+    <RootNamespace>Takaro</RootNamespace>
+    <AssemblyName>Takaro</AssemblyName>
     <UseMSBuildEngine>True</UseMSBuildEngine>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <NuGetPackageImportStamp>
@@ -17,7 +17,7 @@
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <Optimize>true</Optimize>
-    <OutputPath>bin\Mods\Takaro7D2D\</OutputPath>
+    <OutputPath>bin\Mods\Takaro\</OutputPath>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <ConsolePause>false</ConsolePause>

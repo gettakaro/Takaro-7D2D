@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<Takaro7D2D>
+<Takaro>
   <WebSocket>
     <Url>ws://192.168.50.35:3004</Url>
     <IdentityToken>your-identity-token</IdentityToken>
@@ -7,4 +7,4 @@
     <Enabled>true</Enabled>
     <ReconnectIntervalSeconds>30</ReconnectIntervalSeconds>
   </WebSocket>
-</Takaro7D2D>
+</Takaro>

@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using System.Text;
-using Takaro7D2D.Config;
-using Takaro7D2D.WebSocket;
+using Takaro.Config;
+using Takaro.WebSocket;
 
-namespace Takaro7D2D
+namespace Takaro
 {
     public class API : IModApi
     {

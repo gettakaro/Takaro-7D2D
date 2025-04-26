@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Xml;
 
-namespace Takaro7D2D.Config
+namespace Takaro.Config
 {
     public class ConfigManager
     {
@@ -15,7 +15,7 @@ namespace Takaro7D2D.Config
         public bool WebSocketEnabled { get; private set; } = true;
         public int ReconnectIntervalSeconds { get; private set; } = 30;
 
-        private string ConfigFilePath => Path.Combine(GameIO.GetGamePath(), "Mods", "Takaro7D2D", "Config.xml");
+        private string ConfigFilePath => Path.Combine(GameIO.GetGamePath(), "Mods", "Takaro", "Config.xml");
 
         private ConfigManager()
         {
@@ -114,7 +114,7 @@ namespace Takaro7D2D.Config
                 using (XmlWriter writer = XmlWriter.Create(ConfigFilePath, new XmlWriterSettings { Indent = true }))
                 {
                     writer.WriteStartDocument();
-                    writer.WriteStartElement("Takaro7D2D");
+                    writer.WriteStartElement("Takaro");
 
                     writer.WriteStartElement("WebSocket");
                     writer.WriteElementString("Url", WebSocketUrl);
@@ -124,7 +124,7 @@ namespace Takaro7D2D.Config
                     writer.WriteElementString("ReconnectIntervalSeconds", ReconnectIntervalSeconds.ToString());
                     writer.WriteEndElement(); // WebSocket
 
-                    writer.WriteEndElement(); // Takaro7D2D
+                    writer.WriteEndElement(); // Takaro
                     writer.WriteEndDocument();
                 }
             }

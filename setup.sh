@@ -36,13 +36,13 @@ docker compose cp builder:/lib/Newtonsoft.Json.13.0.1 _data/7dtd-binaries/Newton
 
 # Run the build process inside the builder container
 echo "Starting build process in builder container..."
-docker compose run --rm builder /bin/bash -c "msbuild Takaro7D2D.sln /p:Configuration=Release"
+docker compose run --rm builder /bin/bash -c "msbuild Takaro.sln /p:Configuration=Release"
 
 # Copy the built files to the server mods directory
 echo "Copying mod files to server mods directory..."
-if [ -d ./_data/build/Mods/Takaro7D2D ]; then
-  mkdir -p ./_data/ServerFiles/Mods/Takaro7D2D
-  cp -r ./_data/build/Mods/Takaro7D2D/* ./_data/ServerFiles/Mods/Takaro7D2D/
+if [ -d ./_data/build/Mods/Takaro ]; then
+  mkdir -p ./_data/ServerFiles/Mods/Takaro
+  cp -r ./_data/build/Mods/Takaro/* ./_data/ServerFiles/Mods/Takaro/
   echo "Mod files successfully copied to server"
 else
   echo "WARNING: Build output directory not found!"

@@ -4,11 +4,11 @@ using System.Text;
 using System.Collections.Generic;
 using WebSocketSharp;
 using System.Reflection;
-using Takaro7D2D.Config;
+using Takaro.Config;
 using System.IO;
 using Newtonsoft.Json;
 
-namespace Takaro7D2D.WebSocket
+namespace Takaro.WebSocket
 {
     public class WebSocketClient
     {

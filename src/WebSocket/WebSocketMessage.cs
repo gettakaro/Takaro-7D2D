@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Runtime.Serialization;
 using Newtonsoft.Json;
 
-namespace Takaro7D2D.WebSocket
+namespace Takaro.WebSocket
 {
     [Serializable]
     public class WebSocketMessage
