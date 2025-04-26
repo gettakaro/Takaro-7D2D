@@ -19,7 +19,6 @@ namespace Takaro.WebSocket
         private Timer _heartbeatTimer;
         private Timer _reconnectTimer;
         private bool _isConnected = false;
-        private bool _isAuthenticated = false;
         private bool _shuttingDown = false;
         private int _reconnectAttempts = 0;
         private const int MAX_RECONNECT_ATTEMPTS = 5;
@@ -116,7 +115,6 @@ namespace Takaro.WebSocket
                 
                 _webSocket.OnClose += (sender, e) => {
                     _isConnected = false;
-                    _isAuthenticated = false;
                     Log.Out($"[Takaro] WebSocket connection closed: {e.Code} - {e.Reason}");
                     
                     StopTimers();
@@ -146,12 +144,25 @@ namespace Takaro.WebSocket
                 // Here you would handle incoming messages from the server
                 // For example, parsing commands to execute in the game
                 
-                // For now, we'll just acknowledge authentication
-                if (message.Contains("authenticated"))
+                // Deserialize the message
+                var webSocketMessage = JsonConvert.DeserializeObject<WebSocketMessage>(message);
+                if (webSocketMessage == null)
                 {
-                    _isAuthenticated = true;
-                    Log.Out("[Takaro] WebSocket authenticated successfully");
+                    Log.Error("[Takaro] Received null message from WebSocket server");
+                    return;
                 }
+
+                // Handle different message types
+                switch (webSocketMessage.Data["action"].ToString())
+                {
+                    case "testReachability":
+                        // TODO...
+                        break;
+                    default:
+                        Log.Warning($"[Takaro] Unknown message type: {webSocketMessage.Type}");
+                        break;
+                }
+
             }
             catch (Exception ex)
             {
@@ -250,7 +261,6 @@ namespace Takaro.WebSocket
                 {
                     _webSocket = null;
                     _isConnected = false;
-                    _isAuthenticated = false;
                 }
             }
         }
