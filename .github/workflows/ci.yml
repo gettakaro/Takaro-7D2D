@@ -50,15 +50,6 @@ jobs:
         with:
           name: takaro-mod
           path: ./dist
-      
-      - name: Debug files
-        run: |
-          echo "Current directory: $(pwd)"
-          echo "Files in current directory:"
-          ls -la
-          echo "Files in dist"
-          ls -la dist
-          find dist -type f
 
       - name: Set version
         id: set-version
@@ -75,6 +66,21 @@ jobs:
             echo "version=$VERSION" >> $GITHUB_OUTPUT
             echo "release_name=Development Build $VERSION" >> $GITHUB_OUTPUT
           fi
+
+      - name: Zip mods
+        run: |
+          cd dist
+          zip -r takaro-mod.zip Mods
+          cd ..
+
+      - name: Debug files
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Files in current directory:"
+          ls -la
+          echo "Files in dist"
+          ls -la dist
+          find dist -type f          
 
       - name: Create GitHub Release
         id: create_release
