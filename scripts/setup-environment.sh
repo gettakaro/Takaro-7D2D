@@ -16,8 +16,6 @@ echo "Debugging SteamCMD output directory..."
 docker compose run --rm steamcmd bash -c "ls -la /game && find /game -type d | sort"
 echo "Checking container file owner..."
 docker compose run --rm steamcmd bash -c "ls -la /game"
-echo "Fixing permissions if needed..."
-docker compose run --rm steamcmd bash -c "chmod -R 755 /game && chown -R $(id -u):$(id -g) /game"
 echo "Checking host file system..."
 ls -la ./_data/game-files
 find ./_data/game-files -type d | sort
