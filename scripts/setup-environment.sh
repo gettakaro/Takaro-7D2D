@@ -5,6 +5,8 @@ echo "Setting up 7D2D mod development environment..."
 
 # Create directory structure
 mkdir -p ./_data/{7dtd-binaries,build,game-files,lib,ServerFiles}
+# Make everything world-writable
+chmod -R 777 ./_data
 
 # Download 7D2D dedicated server files via SteamCMD
 echo "Downloading 7D2D server files via SteamCMD..."
