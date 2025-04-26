@@ -41,16 +41,8 @@ jobs:
 
       - name: Create mod package
         run: |
-          if [ -d "./_data/build/Mods/Takaro" ]; then
-            mkdir -p ./dist
-            cd ./_data/build/Mods
-            zip -r ../../../../dist/Takaro-mod.zip Takaro/
-            cd ../../../..
-            echo "Mod package created at dist/Takaro-mod.zip"
-          else
-            echo "ERROR: Build output directory not found!"
-            exit 1
-          fi
+          mkdir -p dist
+          zip -r dist/Takaro-mod.zip _data/build/*
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4.6.2

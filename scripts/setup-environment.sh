@@ -12,15 +12,8 @@ chmod -R 777 ./_data
 echo "Downloading 7D2D server files via SteamCMD..."
 docker compose run --rm steamcmd
 
-echo "Debugging SteamCMD output directory..."
-docker compose run --rm steamcmd bash -c "ls -la /game && find /game -type d | sort"
-echo "Checking container file owner..."
-docker compose run --rm steamcmd bash -c "ls -la /game"
-echo "Checking host file system..."
-ls -la ./_data/game-files
-find ./_data/game-files -type d | sort
-
 # Verify that the server files were downloaded
+# SteamCMD can sometimes fail silently, this makes the error obvious
 if [ ! -d "./_data/game-files/7DaysToDieServer_Data" ]; then
   echo "Error: 7D2D server files not found. Please check the SteamCMD output."
   echo "Contents of _data/"
