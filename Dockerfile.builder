@@ -1,28 +1,20 @@
-FROM mono:latest
+FROM mono:6.12.0.182-slim
 
 WORKDIR /app
 
-# Install dependencies
 RUN apt-get update && \
   apt-get install -y nuget curl unzip git && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/*
 
-# Create the 7dtd-binaries directory
-RUN mkdir -p /app/7dtd-binaries
-RUN mkdir -p /app/lib
-RUN mkdir -p /app/packages
+RUN mono --version && \
+  msbuild /version || echo "Installing MSBuild..." && \
+  apt-get update && \
+  apt-get install -y mono-complete mono-devel && \
+  rm -rf /var/lib/apt/lists/*  
 
-# Clone and build websocket-sharp
-# Have to build from source because there is no precompiled version
-# The NuGest package is wildly out of date (2016) while the git repo still gets updates
-RUN git clone https://github.com/sta/websocket-sharp.git /tmp/websocket-sharp && \
-  cd /tmp/websocket-sharp && \
-  xbuild /p:Configuration=Release websocket-sharp.sln && \
-  cp /tmp/websocket-sharp/Example/bin/Release/websocket-sharp.dll /lib/
+# Create necessary directories
+RUN mkdir -p /app/lib /app/packages
 
-# Install required dependencies
-RUN nuget install Newtonsoft.Json -Version 13.0.1 -OutputDirectory /lib/
-
-# The build process will be handled by the command in docker-compose
-CMD ["bash", "-c", "echo 'Waiting for command...' && tail -f /dev/null"]
+# Set the default command
+CMD ["bash", "-c", "echo 'Builder container ready' && tail -f /dev/null"]
