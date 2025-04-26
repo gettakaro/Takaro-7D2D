@@ -23,16 +23,6 @@ jobs:
       - name: Set up environment
         run: ./scripts/setup-environment.sh
 
-      - name: Debug files
-        run: |
-          echo "Current directory: $(pwd)"
-          echo "Files in current directory:"
-          ls -la
-          echo "Files in _data"
-          ls -la _data
-          find _data/7dtd-binaries -type f
-          ls -la _data/game-files/7DaysToDieServer_Data/Managed
-
       - name: Build mod
         run: ./scripts/build-mod.sh
       
@@ -60,6 +50,15 @@ jobs:
         with:
           name: takaro-mod
           path: ./dist
+      
+      - name: Debug files
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Files in current directory:"
+          ls -la
+          echo "Files in dist"
+          ls -la dist
+          find dist -type f
 
       - name: Set version
         id: set-version
