@@ -20,4 +20,4 @@ echo "Preparing dependencies..."
 docker compose run --rm deps
 
 echo "Environment setup complete!"
-echo "You can now use build-mod.sh to compile your mod."
+echo "You can now use build-mod.sh to compile the mod."

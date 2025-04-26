@@ -23,6 +23,15 @@ jobs:
       - name: Set up environment
         run: ./scripts/setup-environment.sh
 
+      - name: Debug files
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Files in current directory:"
+          ls -la
+          echo "Files in _data"
+          ls -la _data
+          find _data/7dtd-binaries -type f
+
       - name: Build mod
         run: ./scripts/build-mod.sh
       
