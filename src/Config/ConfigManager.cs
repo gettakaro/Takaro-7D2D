@@ -15,6 +15,7 @@ namespace Takaro.Config
         public bool WebSocketEnabled { get; private set; } = true;
         public int ReconnectIntervalSeconds { get; private set; } = 30;
 
+        private const string DEFAULT_IDENTITY_TOKEN = "your-identity-token";
         private string ConfigFilePath => Path.Combine(GameIO.GetGamePath(), "Mods", "Takaro", "Config.xml");
 
         private ConfigManager()
@@ -96,6 +97,14 @@ namespace Takaro.Config
                     }
                 }
 
+                // Check if identity token is the default value and generate a new one if needed
+                if (string.IsNullOrEmpty(IdentityToken) || IdentityToken == DEFAULT_IDENTITY_TOKEN)
+                {
+                    IdentityToken = GenerateUuid();
+                    UpdateIdentityTokenInConfig(IdentityToken);
+                    Log.Out($"[Takaro] Generated new identity token: {IdentityToken}");
+                }
+
                 Log.Out($"[Takaro] Config loaded. WebSocket URL: {WebSocketUrl}, Enabled: {WebSocketEnabled}");
             }
             catch (Exception ex)
@@ -109,6 +118,9 @@ namespace Takaro.Config
         {
             try
             {
+                // Generate a new identity token for default config
+                string identityToken = GenerateUuid();
+                
                 Directory.CreateDirectory(Path.GetDirectoryName(ConfigFilePath));
 
                 using (XmlWriter writer = XmlWriter.Create(ConfigFilePath, new XmlWriterSettings { Indent = true }))
@@ -118,7 +130,7 @@ namespace Takaro.Config
 
                     writer.WriteStartElement("WebSocket");
                     writer.WriteElementString("Url", WebSocketUrl);
-                    writer.WriteElementString("IdentityToken", IdentityToken);
+                    writer.WriteElementString("IdentityToken", identityToken);
                     writer.WriteElementString("RegistrationToken", RegistrationToken);
                     writer.WriteElementString("Enabled", WebSocketEnabled.ToString().ToLower());
                     writer.WriteElementString("ReconnectIntervalSeconds", ReconnectIntervalSeconds.ToString());
@@ -127,10 +139,47 @@ namespace Takaro.Config
                     writer.WriteEndElement(); // Takaro
                     writer.WriteEndDocument();
                 }
+                
+                // Update the instance property
+                IdentityToken = identityToken;
+                
+                Log.Out($"[Takaro] Default config created with generated identity token: {identityToken}");
             }
             catch (Exception ex)
             {
                 Log.Error($"[Takaro] Error creating default config: {ex.Message}");
+                Log.Exception(ex);
+            }
+        }
+        
+        private string GenerateUuid()
+        {
+            // Generate a unique identifier using System.Guid
+            return Guid.NewGuid().ToString();
+        }
+        
+        private void UpdateIdentityTokenInConfig(string newToken)
+        {
+            try
+            {
+                XmlDocument doc = new XmlDocument();
+                doc.Load(ConfigFilePath);
+                
+                var node = doc.SelectSingleNode("//Takaro/WebSocket/IdentityToken");
+                if (node != null)
+                {
+                    node.InnerText = newToken;
+                    doc.Save(ConfigFilePath);
+                    Log.Out("[Takaro] Updated identity token in config file");
+                }
+                else
+                {
+                    Log.Error("[Takaro] Could not find IdentityToken node in config to update");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"[Takaro] Error updating identity token in config: {ex.Message}");
                 Log.Exception(ex);
             }
         }
