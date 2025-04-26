@@ -1,4 +1,3 @@
-version: '3'
 services:
   7dtdserver:
     image: vinanrra/7dtd-server

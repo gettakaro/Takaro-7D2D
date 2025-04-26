@@ -6,7 +6,7 @@ using WebSocketSharp;
 using System.Reflection;
 using Takaro7D2D.Config;
 using System.IO;
-using System.Runtime.Serialization.Json;
+using Newtonsoft.Json;
 
 namespace Takaro7D2D.WebSocket
 {
@@ -95,17 +95,13 @@ namespace Takaro7D2D.WebSocket
                     Log.Out("[Takaro] WebSocket connection established");
                     
                     // Send registration message
-                    if (!string.IsNullOrEmpty(config.RegistrationToken))
+                    if (string.IsNullOrEmpty(config.RegistrationToken) || string.IsNullOrEmpty(config.IdentityToken))
                     {
-                        SendMessage(WebSocketMessage.CreateRegistration(config.RegistrationToken));
+                        Log.Error("[Takaro] Registration token or identity token is not set in config.");
+                        return;
                     }
                     
-                    // Send authentication message
-                    if (!string.IsNullOrEmpty(config.IdentityToken))
-                    {
-                        SendMessage(WebSocketMessage.CreateAuth(config.IdentityToken));
-                    }
-                    
+                    SendMessage(WebSocketMessage.CreateIdentify(config.RegistrationToken, config.IdentityToken));
                     // Start heartbeat
                     StartHeartbeat();
                 };
@@ -186,12 +182,7 @@ namespace Takaro7D2D.WebSocket
 
         private string SerializeToJson(WebSocketMessage message)
         {
-            using (MemoryStream ms = new MemoryStream())
-            {
-                DataContractJsonSerializer serializer = new DataContractJsonSerializer(typeof(WebSocketMessage));
-                serializer.WriteObject(ms, message);
-                return Encoding.UTF8.GetString(ms.ToArray());
-            }
+          return Newtonsoft.Json.JsonConvert.SerializeObject(message);
         }
 
         private void StartHeartbeat()

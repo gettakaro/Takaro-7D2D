@@ -24,6 +24,7 @@ sudo chmod -R 755 ./_data/build
 sudo chmod -R 755 ./_data/7dtd-binaries
 sudo chmod -R 755 ./lib
 
+docker compose up -d builder
 # Copy the built websocket-sharp DLL to the _data directory
 docker compose cp builder:/lib/websocket-sharp.dll _data/7dtd-binaries/websocket-sharp.dll
 
