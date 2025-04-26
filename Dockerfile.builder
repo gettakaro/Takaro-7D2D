@@ -11,6 +11,7 @@ RUN apt-get update && \
 # Create the 7dtd-binaries directory
 RUN mkdir -p /app/7dtd-binaries
 RUN mkdir -p /app/lib
+RUN mkdir -p /app/packages
 
 # Clone and build websocket-sharp
 # Have to build from source because there is no precompiled version
@@ -21,7 +22,7 @@ RUN git clone https://github.com/sta/websocket-sharp.git /tmp/websocket-sharp &&
   cp /tmp/websocket-sharp/Example/bin/Release/websocket-sharp.dll /lib/
 
 # Install required dependencies
-RUN nuget install Newtonsoft.Json -Version 13.0.1 -OutputDirectory /app/packages
+RUN nuget install Newtonsoft.Json -Version 13.0.1 -OutputDirectory /lib/
 
 # The build process will be handled by the command in docker-compose
 CMD ["bash", "-c", "echo 'Waiting for command...' && tail -f /dev/null"]

@@ -28,6 +28,12 @@ docker compose up -d builder
 # Copy the built websocket-sharp DLL to the _data directory
 docker compose cp builder:/lib/websocket-sharp.dll _data/7dtd-binaries/websocket-sharp.dll
 
+# Create packages directory if it doesn't exist
+mkdir -p ./packages
+# Copy Newtonsoft.Json from the builder container
+echo "Copying Newtonsoft.Json from builder container..."
+docker compose cp builder:/lib/Newtonsoft.Json.13.0.1 _data/7dtd-binaries/Newtonsoft.Json.13.0.1
+
 # Run the build process inside the builder container
 echo "Starting build process in builder container..."
 docker compose run --rm builder /bin/bash -c "msbuild Takaro7D2D.sln /p:Configuration=Release"
@@ -37,7 +43,6 @@ echo "Copying mod files to server mods directory..."
 if [ -d ./_data/build/Mods/Takaro7D2D ]; then
   mkdir -p ./_data/ServerFiles/Mods/Takaro7D2D
   cp -r ./_data/build/Mods/Takaro7D2D/* ./_data/ServerFiles/Mods/Takaro7D2D/
-
   echo "Mod files successfully copied to server"
 else
   echo "WARNING: Build output directory not found!"
