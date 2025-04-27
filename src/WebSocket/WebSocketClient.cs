@@ -58,7 +58,7 @@ namespace Takaro.WebSocket
                 }
 
                 Log.Out($"[Takaro] Initializing WebSocket client to {config.WebSocketUrl}");
-                
+
                 ConnectToServer();
             }
             catch (Exception ex)
@@ -87,44 +87,48 @@ namespace Takaro.WebSocket
                 }
 
                 _webSocket = new WebSocketSharp.WebSocket(config.WebSocketUrl);
-                
-                _webSocket.OnOpen += (sender, e) => {
+
+                _webSocket.OnOpen += (sender, e) =>
+                {
                     _isConnected = true;
                     _reconnectAttempts = 0;
                     Log.Out("[Takaro] WebSocket connection established");
-                    
+
                     // Send registration message
                     if (string.IsNullOrEmpty(config.RegistrationToken) || string.IsNullOrEmpty(config.IdentityToken))
                     {
                         Log.Error("[Takaro] Registration token or identity token is not set in config.");
                         return;
                     }
-                    
+
                     SendMessage(WebSocketMessage.CreateIdentify(config.RegistrationToken, config.IdentityToken));
                     // Start heartbeat
                     StartHeartbeat();
                 };
-                
-                _webSocket.OnMessage += (sender, e) => {
+
+                _webSocket.OnMessage += (sender, e) =>
+                {
                     HandleMessage(e.Data);
                 };
-                
-                _webSocket.OnError += (sender, e) => {
+
+                _webSocket.OnError += (sender, e) =>
+                {
                     Log.Error($"[Takaro] WebSocket error: {e.Message}");
                 };
-                
-                _webSocket.OnClose += (sender, e) => {
+
+                _webSocket.OnClose += (sender, e) =>
+                {
                     _isConnected = false;
                     Log.Out($"[Takaro] WebSocket connection closed: {e.Code} - {e.Reason}");
-                    
+
                     StopTimers();
-                    
+
                     if (!_shuttingDown)
                     {
                         ScheduleReconnect();
                     }
                 };
-                
+
                 _webSocket.Connect();
             }
             catch (Exception ex)
@@ -142,25 +146,40 @@ namespace Takaro.WebSocket
                 Log.Out($"[Takaro] Received WebSocket message: {message}");
                 var webSocketMessage = JsonConvert.DeserializeObject<WebSocketMessage>(message);
 
-
-                if (webSocketMessage == null || webSocketMessage.Data == null)
+                if (webSocketMessage == null || webSocketMessage.Payload == null)
                 {
                     // No data in the message, so nothing to do
                     return;
                 }
 
-                string requestId = webSocketMessage.RequestId;  
+                string requestId = webSocketMessage.RequestId;
 
                 if (string.IsNullOrEmpty(requestId))
                 {
                     Log.Warning("[Takaro] Received message without requestId");
                     return;
-                }  
+                }
+
+                // Handle the Payload property which could be a dictionary or array
+                Dictionary<string, object> payloadDict = webSocketMessage.Payload as Dictionary<string, object>;
+
+                if (payloadDict == null)
+                {
+                    if (webSocketMessage.Payload is Newtonsoft.Json.Linq.JObject jObject)
+                    {
+                        payloadDict = jObject.ToObject<Dictionary<string, object>>();
+                    }
+                    else
+                    {
+                        Log.Warning("[Takaro] Received message with payload that is not a dictionary");
+                        return;
+                    }
+                }
 
                 string action = null;
-                if (webSocketMessage.Data.ContainsKey("action"))
+                if (payloadDict.ContainsKey("action"))
                 {
-                    action = webSocketMessage.Data["action"].ToString();
+                    action = payloadDict["action"].ToString();
                 }
                 else
                 {
@@ -174,11 +193,13 @@ namespace Takaro.WebSocket
                     case "testReachability":
                         HandleTestReachability(requestId);
                         break;
+                    case "getPlayers":
+                        HandleGetPlayers(requestId);
+                        break;
                     default:
                         Log.Warning($"[Takaro] Unknown message type: {action}");
                         break;
                 }
-
             }
             catch (Exception ex)
             {
@@ -196,7 +217,7 @@ namespace Takaro.WebSocket
                     Log.Warning("[Takaro] Cannot send message - WebSocket not connected");
                     return;
                 }
-                
+
                 string json = SerializeToJson(message);
                 Log.Out($"[Takaro] Sending WebSocket message: {json}");
                 _webSocket.Send(json);
@@ -210,14 +231,15 @@ namespace Takaro.WebSocket
 
         private string SerializeToJson(WebSocketMessage message)
         {
-          return Newtonsoft.Json.JsonConvert.SerializeObject(message);
+            return Newtonsoft.Json.JsonConvert.SerializeObject(message);
         }
 
         private void StartHeartbeat()
         {
             StopHeartbeatTimer();
-            
-            _heartbeatTimer = new Timer(state => {
+
+            _heartbeatTimer = new Timer(state =>
+            {
                 if (_isConnected)
                 {
                     SendMessage(WebSocketMessage.CreateHeartbeat());
@@ -241,12 +263,13 @@ namespace Takaro.WebSocket
                 Log.Error($"[Takaro] Maximum reconnection attempts ({MAX_RECONNECT_ATTEMPTS}) reached. Giving up.");
                 return;
             }
-            
+
             _reconnectAttempts++;
             var interval = TimeSpan.FromSeconds(ConfigManager.Instance.ReconnectIntervalSeconds);
             Log.Out($"[Takaro] Scheduling reconnect attempt {_reconnectAttempts} in {interval.TotalSeconds} seconds");
-            
-            _reconnectTimer = new Timer(state => {
+
+            _reconnectTimer = new Timer(state =>
+            {
                 ConnectToServer();
             }, null, interval, Timeout.InfiniteTimeSpan);
         }
@@ -254,7 +277,7 @@ namespace Takaro.WebSocket
         private void StopTimers()
         {
             StopHeartbeatTimer();
-            
+
             if (_reconnectTimer != null)
             {
                 _reconnectTimer.Dispose();
@@ -289,6 +312,43 @@ namespace Takaro.WebSocket
             SendMessage(WebSocketMessage.CreateTestReachabilityResponse(requestId));
         }
 
+        private void HandleGetPlayers(string requestId)
+        {
+            var players = new List<Dictionary<string, object>>();
+            foreach (var player in GameManager.Instance.World.Players.list)
+            {
+                int entityId = player.entityId;
+                ClientInfo cInfo = ConnectionManager.Instance.Clients.ForEntityId(entityId);
+
+                var playerInfo = new Dictionary<string, object>
+                {
+                    // Takaro gameId is the EOS ID (CrossPlatform ID) without the EOS_ prefix
+                    { "gameId",cInfo.CrossplatformId.CombinedString.Replace("EOS_", "") },
+                    { "name", cInfo.playerName },
+                    { "ip", cInfo.ip },
+                    { "ping", cInfo.ping },
+                };
+
+                if (cInfo.PlatformId != null)
+                {
+                    if (cInfo.PlatformId.CombinedString != null && cInfo.PlatformId.CombinedString.StartsWith("Steam_"))
+                    {
+                        playerInfo.Add("steamId", cInfo.PlatformId.CombinedString.Replace("Steam_", ""));
+                    }
+
+                    if (cInfo.PlatformId.CombinedString != null && cInfo.PlatformId.CombinedString.StartsWith("XBL_"))
+                    {
+                        playerInfo.Add("xboxLiveId", cInfo.PlatformId.CombinedString.Replace("XBL_", ""));
+                    }
+
+                }
+
+                players.Add(playerInfo);
+            }
+
+            SendMessage(WebSocketMessage.CreatePlayersResponse(requestId, players));
+        }
+
         #endregion
 
         #region Event Handlers        
@@ -297,7 +357,7 @@ namespace Takaro.WebSocket
         public void SendPlayerConnected(ClientInfo cInfo)
         {
             if (cInfo == null) return;
-            
+
             SendMessage(WebSocketMessage.CreatePlayerConnected(
                 cInfo.playerName,
                 cInfo.entityId.ToString(),
@@ -308,7 +368,7 @@ namespace Takaro.WebSocket
         public void SendPlayerDisconnected(ClientInfo cInfo)
         {
             if (cInfo == null) return;
-            
+
             SendMessage(WebSocketMessage.CreatePlayerDisconnected(
                 cInfo.playerName,
                 cInfo.entityId.ToString(),
@@ -319,7 +379,7 @@ namespace Takaro.WebSocket
         public void SendChatMessage(ClientInfo cInfo, string message)
         {
             if (cInfo == null) return;
-            
+
             SendMessage(WebSocketMessage.CreateChatMessage(
                 cInfo.playerName,
                 cInfo.entityId.ToString(),
@@ -331,7 +391,7 @@ namespace Takaro.WebSocket
         public void SendEntityKilled(ClientInfo killerInfo, string entityName, string entityType)
         {
             if (killerInfo == null) return;
-            
+
             SendMessage(WebSocketMessage.CreateEntityKilled(
                 killerInfo.playerName,
                 killerInfo.entityId.ToString(),

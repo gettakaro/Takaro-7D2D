@@ -12,22 +12,32 @@ namespace Takaro.WebSocket
         public string Type { get; set; }
         
         [JsonProperty("payload")]
-        public Dictionary<string, object> Data { get; set; } = new Dictionary<string, object>();
+        public object Payload { get; set; } 
         
         [JsonProperty("requestId")]
         public string RequestId { get; set; }
+
         public WebSocketMessage() { }
         
         public WebSocketMessage(string type)
         {
             Type = type;
+            Payload = new Dictionary<string, object>();
         }
         
         public WebSocketMessage(string type, Dictionary<string, object> data, string requestId = null)
         {
             Type = type;
             RequestId = requestId;
-            Data = data ?? new Dictionary<string, object>();
+            Payload = data ?? new Dictionary<string, object>();
+        }
+
+        // New constructor for array payloads
+        public WebSocketMessage(string type, List<Dictionary<string, object>> arrayData, string requestId = null)
+        {
+            Type = type;
+            RequestId = requestId;
+            Payload = arrayData ?? new List<Dictionary<string, object>>();
         }
 
         // Basic message types
@@ -102,11 +112,15 @@ namespace Takaro.WebSocket
                 return new WebSocketMessage("response", dictData, requestId);
             }
             
+            // If data is a List<Dictionary<string, object>>, use the array constructor
+            if (data is List<Dictionary<string, object>> listData)
+            {
+                return new WebSocketMessage("response", listData, requestId);
+            }
+            
             // Otherwise, convert the data to a Dictionary with appropriate key(s)
             var payload = new Dictionary<string, object>();
             
-            // Handle different data types - this is a simplified approach
-            // You may need to expand this based on your specific requirements
             if (data != null)
             {
                 // If it's a simple value or complex object that's not a dictionary
@@ -166,12 +180,10 @@ namespace Takaro.WebSocket
             return new WebSocketMessage("response", playerData, requestId);
         }
         
+        // Modified to pass array directly as payload
         public static WebSocketMessage CreatePlayersResponse(string requestId, List<Dictionary<string, object>> playersData)
         {
-            return new WebSocketMessage("response", new Dictionary<string, object>
-            {
-                { "players", playersData }
-            }, requestId);
+            return new WebSocketMessage("response", playersData, requestId);
         }
         
         public static WebSocketMessage CreatePlayerLocationResponse(string requestId, double x, double y, double z)
@@ -192,7 +204,7 @@ namespace Takaro.WebSocket
             }, requestId);
         }
         
-        // Item-related responses
+        // Item-related responses - can be modified to use array payload if needed
         public static WebSocketMessage CreateItemsListResponse(string requestId, List<Dictionary<string, object>> items)
         {
             return new WebSocketMessage("response", new Dictionary<string, object>
@@ -201,7 +213,7 @@ namespace Takaro.WebSocket
             }, requestId);
         }
         
-        // Ban-related responses
+        // Ban-related responses - can be modified to use array payload if needed
         public static WebSocketMessage CreateBansListResponse(string requestId, List<Dictionary<string, object>> bans)
         {
             return new WebSocketMessage("response", new Dictionary<string, object>
