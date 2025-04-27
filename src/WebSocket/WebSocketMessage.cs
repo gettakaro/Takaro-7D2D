@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.Serialization;
 using Newtonsoft.Json;
-using Takaro;
 
 namespace Takaro.WebSocket
 {
@@ -40,77 +38,28 @@ namespace Takaro.WebSocket
             Payload = objectArray;
         }
 
-        // Basic message types
-        public static WebSocketMessage CreateHeartbeat()
+        // Generic create method - primary method to replace most specific methods
+        public static WebSocketMessage Create(string type, Dictionary<string, object> payload = null, string requestId = null)
         {
-            return new WebSocketMessage("ping", new Dictionary<string, object>
-            {
-                { "timestamp", DateTime.UtcNow.ToString("o") }
-            });
+            return new WebSocketMessage(type, payload ?? new Dictionary<string, object>(), requestId);
         }
-        
-        public static WebSocketMessage CreateIdentify(string registrationToken, string identityToken)
+
+        // Generic create method for array payloads
+        public static WebSocketMessage Create(string type, object[] payload, string requestId = null)
         {
-            return new WebSocketMessage("identify", new Dictionary<string, object>
-            {
-                { "registrationToken", registrationToken },
-                { "identityToken", identityToken }
-            });
+            return new WebSocketMessage(type, payload, requestId);
         }
-        
-        // Game event messages
-        public static WebSocketMessage CreatePlayerConnected(string playerName, string playerId, string steamId)
-        {
-            return new WebSocketMessage("player-connected", new Dictionary<string, object>
-            {
-                { "playerName", playerName },
-                { "playerId", playerId },
-                { "steamId", steamId }
-            });
-        }
-        
-        public static WebSocketMessage CreatePlayerDisconnected(string playerName, string playerId, string steamId)
-        {
-            return new WebSocketMessage("player-disconnected", new Dictionary<string, object>
-            {
-                { "playerName", playerName },
-                { "playerId", playerId },
-                { "steamId", steamId }
-            });
-        }
-        
-        public static WebSocketMessage CreateChatMessage(string playerName, string playerId, string steamId, string message)
-        {
-            return new WebSocketMessage("chat-message", new Dictionary<string, object>
-            {
-                { "playerName", playerName },
-                { "playerId", playerId },
-                { "steamId", steamId },
-                { "message", message }
-            });
-        }
-        
-        public static WebSocketMessage CreateEntityKilled(string killerName, string killerId, string killerSteamId,
-            string entityName, string entityType)
-        {
-            return new WebSocketMessage("entity-killed", new Dictionary<string, object>
-            {
-                { "killerName", killerName },
-                { "killerId", killerId },
-                { "killerSteamId", killerSteamId },
-                { "entityName", entityName },
-                { "entityType", entityType }
-            });
-        }
-        
-        // Response messages
+
+        // Standard response methods
         public static WebSocketMessage CreateResponse(string requestId, object data)
         {
+            // Handle dictionary data
             if (data is Dictionary<string, object> dictData)
             {
                 return new WebSocketMessage("response", dictData, requestId);
             }
             
+            // Handle array data
             if (data is object[] listData)
             {
                 return new WebSocketMessage("response", listData, requestId);
@@ -120,7 +69,7 @@ namespace Takaro.WebSocket
             
             if (data != null)
             {
-                // If it's a simple value or complex object that's not a dictionary
+                // For complex objects, extract properties
                 foreach (var prop in data.GetType().GetProperties())
                 {
                     payload[prop.Name] = prop.GetValue(data);
@@ -138,98 +87,45 @@ namespace Takaro.WebSocket
         
         public static WebSocketMessage CreateErrorResponse(string requestId, string errorMessage)
         {
-            return new WebSocketMessage("error", new Dictionary<string, object>
+            return Create("error", new Dictionary<string, object>
             {
                 { "requestId", requestId },
                 { "error", errorMessage }
             });
         }
-        
-        // Command-related messages
-        public static WebSocketMessage CreateCommandOutput(string requestId, bool success, string rawResult, string errorMessage = null)
+
+        // Common message type constants - for consistency and to avoid string typos
+        public static class MessageTypes
         {
-            var data = new Dictionary<string, object>
-            {
-                { "success", success },
-                { "rawResult", rawResult }
-            };
+            // Basic types
+            public const string Ping = "ping";
+            public const string Identify = "identify";
+            public const string Response = "response";
+            public const string Error = "error";
             
-            if (!string.IsNullOrEmpty(errorMessage))
+            // Game event types
+            public const string PlayerConnected = "player-connected";
+            public const string PlayerDisconnected = "player-disconnected";
+            public const string ChatMessage = "chat-message";
+            public const string EntityKilled = "entity-killed";
+        }
+
+        // A few common message factory methods for convenience
+        public static WebSocketMessage CreateHeartbeat()
+        {
+            return Create(MessageTypes.Ping, new Dictionary<string, object>
             {
-                data["errorMessage"] = errorMessage;
-            }
-            
-            return new WebSocketMessage("response", data, requestId);
+                { "timestamp", DateTime.UtcNow.ToString("o") }
+            });
         }
         
-        // Reachability test response
-        public static WebSocketMessage CreateTestReachabilityResponse(string requestId)
+        public static WebSocketMessage CreateIdentify(string registrationToken, string identityToken)
         {
-            return new WebSocketMessage("response", new Dictionary<string, object>
+            return Create(MessageTypes.Identify, new Dictionary<string, object>
             {
-                { "connectable", true }
-            }, requestId);
-        }
-        
-        // Player-related response messages
-        public static WebSocketMessage CreatePlayerResponse(string requestId, Dictionary<string, object> playerData)
-        {
-            return new WebSocketMessage("response", playerData, requestId);
-        }
-        
-        public static WebSocketMessage CreatePlayersResponse(string requestId, List<TakaroPlayer> playersData)
-        {
-            return new WebSocketMessage("response", playersData.ToArray(), requestId);
-        }
-        
-        public static WebSocketMessage CreatePlayerLocationResponse(string requestId, double x, double y, double z)
-        {
-            return new WebSocketMessage("response", new Dictionary<string, object>
-            {
-                { "x", x },
-                { "y", y },
-                { "z", z }
-            }, requestId);
-        }
-        
-        public static WebSocketMessage CreatePlayerInventoryResponse(string requestId, List<Dictionary<string, object>> inventoryItems)
-        {
-            return new WebSocketMessage("response", new Dictionary<string, object>
-            {
-                { "items", inventoryItems }
-            }, requestId);
-        }
-        
-        // Item-related responses - can be modified to use array payload if needed
-        public static WebSocketMessage CreateItemsListResponse(string requestId, List<Dictionary<string, object>> items)
-        {
-            return new WebSocketMessage("response", new Dictionary<string, object>
-            {
-                { "items", items }
-            }, requestId);
-        }
-        
-        // Ban-related responses - can be modified to use array payload if needed
-        public static WebSocketMessage CreateBansListResponse(string requestId, List<Dictionary<string, object>> bans)
-        {
-            return new WebSocketMessage("response", new Dictionary<string, object>
-            {
-                { "bans", bans }
-            }, requestId);
-        }
-        
-        // Map-related responses
-        public static WebSocketMessage CreateMapInfoResponse(string requestId, Dictionary<string, object> mapInfo)
-        {
-            return new WebSocketMessage("response", mapInfo, requestId);
-        }
-        
-        public static WebSocketMessage CreateMapTileResponse(string requestId, string base64EncodedImage)
-        {
-            return new WebSocketMessage("response", new Dictionary<string, object>
-            {
-                { "imageData", base64EncodedImage }
-            }, requestId);
+                { "registrationToken", registrationToken },
+                { "identityToken", identityToken }
+            });
         }
     }
 }

@@ -309,7 +309,13 @@ namespace Takaro.WebSocket
 
         private void HandleTestReachability(string requestId)
         {
-            SendMessage(WebSocketMessage.CreateTestReachabilityResponse(requestId));
+            WebSocketMessage message = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.Response, new Dictionary<string, object>
+            {
+                { "connectable", true }
+            }, requestId
+            );
+            SendMessage(message);
         }
 
         private void HandleGetPlayers(string requestId)
@@ -327,13 +333,32 @@ namespace Takaro.WebSocket
                 }
             }
 
-            SendMessage(WebSocketMessage.CreatePlayersResponse(requestId, players));
+            WebSocketMessage message = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.Response, players.ToArray(), requestId
+            );
+            SendMessage(message);
         }
 
         private void HandleGetPlayerLocation(string requestId, string takaroGameId)
         {
-            var players = new List<Dictionary<string, object>>();
-
+            ClientInfo cInfo = Shared.GetClientInfoFromGameId(takaroGameId);
+            if (cInfo == null)
+            {
+                WebSocketMessage errorMessage = WebSocketMessage.CreateErrorResponse(requestId, "Player not found");
+                SendMessage(errorMessage);
+                return;
+            }
+            EntityPlayer player = GameManager.Instance.World.Players.dict[cInfo.entityId];
+            Vector3i pos = new Vector3i(player.GetPosition());
+            WebSocketMessage message = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.Response, new Dictionary<string, object>
+            {
+                { "x", pos.x },
+                { "y", pos.y },
+                { "z", pos.z }
+            }, requestId
+            );
+            SendMessage(message);
         }
 
         #endregion
@@ -344,48 +369,60 @@ namespace Takaro.WebSocket
         public void SendPlayerConnected(ClientInfo cInfo)
         {
             if (cInfo == null) return;
+            WebSocketMessage message = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.PlayerConnected, new Dictionary<string, object>
+            {
+                { "name", cInfo.playerName },
+                { "entityId", cInfo.entityId.ToString() },
+                { "platformId", cInfo.PlatformId.ToString() }
+            });
 
-            SendMessage(WebSocketMessage.CreatePlayerConnected(
-                cInfo.playerName,
-                cInfo.entityId.ToString(),
-                cInfo.PlatformId.ToString()
-            ));
+            SendMessage(message);
         }
 
         public void SendPlayerDisconnected(ClientInfo cInfo)
         {
             if (cInfo == null) return;
 
-            SendMessage(WebSocketMessage.CreatePlayerDisconnected(
-                cInfo.playerName,
-                cInfo.entityId.ToString(),
-                cInfo.PlatformId.ToString()
-            ));
+            WebSocketMessage message = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.PlayerDisconnected, new Dictionary<string, object>
+            {
+                { "name", cInfo.playerName },
+                { "entityId", cInfo.entityId.ToString() },
+                { "platformId", cInfo.PlatformId.ToString() }
+            });
+            SendMessage(message);
         }
 
         public void SendChatMessage(ClientInfo cInfo, string message)
         {
             if (cInfo == null) return;
 
-            SendMessage(WebSocketMessage.CreateChatMessage(
-                cInfo.playerName,
-                cInfo.entityId.ToString(),
-                cInfo.PlatformId.ToString(),
-                message
-            ));
+            WebSocketMessage msg = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.ChatMessage, new Dictionary<string, object>
+            {
+                { "name", cInfo.playerName },
+                { "entityId", cInfo.entityId.ToString() },
+                { "platformId", cInfo.PlatformId.ToString() },
+                { "message", message }
+            });
+            SendMessage(msg);
         }
 
         public void SendEntityKilled(ClientInfo killerInfo, string entityName, string entityType)
         {
             if (killerInfo == null) return;
 
-            SendMessage(WebSocketMessage.CreateEntityKilled(
-                killerInfo.playerName,
-                killerInfo.entityId.ToString(),
-                killerInfo.PlatformId.ToString(),
-                entityName,
-                entityType
-            ));
+            WebSocketMessage msg = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.EntityKilled, new Dictionary<string, object>
+            {
+                { "name", killerInfo.playerName },
+                { "entityId", killerInfo.entityId.ToString() },
+                { "platformId", killerInfo.PlatformId.ToString() },
+                { "entityName", entityName },
+                { "entityType", entityType }
+            });
+            SendMessage(msg);
         }
 
         #endregion
