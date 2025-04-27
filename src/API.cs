@@ -16,10 +16,6 @@ namespace Takaro
             // Initialize config
             ConfigManager.Instance.LoadConfig();
 
-            // Initialize WebSocket client
-            _webSocketClient = WebSocketClient.Instance;
-            _webSocketClient.Initialize();
-
             // Register event handlers
             ModEvents.GameStartDone.RegisterHandler(GameAwake);
             ModEvents.GameShutdown.RegisterHandler(GameShutdown);
@@ -48,7 +44,9 @@ namespace Takaro
 
         private void GameAwake()
         {
-            Log.Out("[Takaro] Game awakened");
+            // Initialize WebSocket client
+            _webSocketClient = WebSocketClient.Instance;
+            _webSocketClient.Initialize();
         }
 
         private void GameShutdown()
