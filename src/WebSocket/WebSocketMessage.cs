@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.Serialization;
 using Newtonsoft.Json;
 
 namespace Takaro.WebSocket
@@ -10,82 +9,148 @@ namespace Takaro.WebSocket
     {
         [JsonProperty("type")]
         public string Type { get; set; }
-        
+
         [JsonProperty("payload")]
-        public Dictionary<string, object> Data { get; set; } = new Dictionary<string, object>();
-        
+        public object Payload { get; set; }
+
+        [JsonProperty("requestId")]
+        public string RequestId { get; set; }
+
         public WebSocketMessage() { }
-        
+
         public WebSocketMessage(string type)
         {
             Type = type;
+            Payload = new Dictionary<string, object>();
         }
-        
-        public WebSocketMessage(string type, Dictionary<string, object> data)
+
+        public WebSocketMessage(
+            string type,
+            Dictionary<string, object> data,
+            string requestId = null
+        )
         {
             Type = type;
-            Data = data ?? new Dictionary<string, object>();
+            RequestId = requestId;
+            Payload = data;
         }
-        
+
+        public WebSocketMessage(string type, object[] objectArray, string requestId = null)
+        {
+            Type = type;
+            RequestId = requestId;
+            Payload = objectArray;
+        }
+
+        // Generic create method - primary method to replace most specific methods
+        public static WebSocketMessage Create(
+            string type,
+            Dictionary<string, object> payload = null,
+            string requestId = null
+        )
+        {
+            return new WebSocketMessage(
+                type,
+                payload ?? new Dictionary<string, object>(),
+                requestId
+            );
+        }
+
+        // Generic create method for array payloads
+        public static WebSocketMessage Create(
+            string type,
+            object[] payload,
+            string requestId = null
+        )
+        {
+            return new WebSocketMessage(type, payload, requestId);
+        }
+
+        // Standard response methods
+        public static WebSocketMessage CreateResponse(string requestId, object data)
+        {
+            // Handle dictionary data
+            if (data is Dictionary<string, object> dictData)
+            {
+                return new WebSocketMessage("response", dictData, requestId);
+            }
+
+            // Handle array data
+            if (data is object[] listData)
+            {
+                return new WebSocketMessage("response", listData, requestId);
+            }
+
+            var payload = new Dictionary<string, object>();
+
+            if (data != null)
+            {
+                // For complex objects, extract properties
+                foreach (var prop in data.GetType().GetProperties())
+                {
+                    payload[prop.Name] = prop.GetValue(data);
+                }
+
+                // If no properties were found, serialize the entire object as a single value
+                if (payload.Count == 0)
+                {
+                    payload["value"] = data;
+                }
+            }
+
+            return new WebSocketMessage("response", payload, requestId);
+        }
+
+        public static WebSocketMessage CreateErrorResponse(string requestId, string errorMessage)
+        {
+            return Create(
+                "error",
+                new Dictionary<string, object>
+                {
+                    { "requestId", requestId },
+                    { "error", errorMessage }
+                }
+            );
+        }
+
+        // Common message type constants - for consistency and to avoid string typos
+        public static class MessageTypes
+        {
+            // Basic types
+            public const string Ping = "ping";
+            public const string Identify = "identify";
+            public const string Response = "response";
+            public const string Error = "error";
+
+            // Game event types
+            public const string PlayerConnected = "player-connected";
+            public const string PlayerDisconnected = "player-disconnected";
+            public const string ChatMessage = "chat-message";
+            public const string EntityKilled = "entity-killed";
+        }
+
+        // A few common message factory methods for convenience
         public static WebSocketMessage CreateHeartbeat()
         {
-            return new WebSocketMessage("ping", new Dictionary<string, object>
-            {
-                { "timestamp", DateTime.UtcNow.ToString("o") }
-            });
+            return Create(
+                MessageTypes.Ping,
+                new Dictionary<string, object> { { "timestamp", DateTime.UtcNow.ToString("o") } }
+            );
         }
-        
-        public static WebSocketMessage CreateIdentify(string registrationToken, string identityToken)
+
+        public static WebSocketMessage CreateIdentify(
+            string registrationToken,
+            string identityToken
+        )
         {
-            return new WebSocketMessage("identify", new Dictionary<string, object>
-            {
-                { "registrationToken", registrationToken },
-                { "identityToken", identityToken }
-            });
-        }
-        
-        public static WebSocketMessage CreatePlayerConnected(string playerName, string playerId, string steamId)
-        {
-            return new WebSocketMessage("player_connected", new Dictionary<string, object>
-            {
-                { "playerName", playerName },
-                { "playerId", playerId },
-                { "steamId", steamId }
-            });
-        }
-        
-        public static WebSocketMessage CreatePlayerDisconnected(string playerName, string playerId, string steamId)
-        {
-            return new WebSocketMessage("player_disconnected", new Dictionary<string, object>
-            {
-                { "playerName", playerName },
-                { "playerId", playerId },
-                { "steamId", steamId }
-            });
-        }
-        
-        public static WebSocketMessage CreateChatMessage(string playerName, string playerId, string steamId, string message)
-        {
-            return new WebSocketMessage("chat_message", new Dictionary<string, object>
-            {
-                { "playerName", playerName },
-                { "playerId", playerId },
-                { "steamId", steamId },
-                { "message", message }
-            });
-        }
-        
-        public static WebSocketMessage CreateEntityKilled(string killerName, string killerId, string killerSteamId,
-            string entityName, string entityType)
-        {
-            return new WebSocketMessage("entity_killed", new Dictionary<string, object>
-            {
-                { "killerName", killerName },
-                { "killerId", killerId },
-                { "killerSteamId", killerSteamId },
-                { "entityName", entityName },
-                { "entityType", entityType }
-            });
+            return Create(
+                MessageTypes.Identify,
+                new Dictionary<string, object>
+                {
+                    { "registrationToken", registrationToken },
+                    { "identityToken", identityToken }
+                }
+            );
         }
     }
 }
