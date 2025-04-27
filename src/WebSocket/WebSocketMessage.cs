@@ -61,7 +61,7 @@ namespace Takaro.WebSocket
         // Game event messages
         public static WebSocketMessage CreatePlayerConnected(string playerName, string playerId, string steamId)
         {
-            return new WebSocketMessage("player_connected", new Dictionary<string, object>
+            return new WebSocketMessage("player-connected", new Dictionary<string, object>
             {
                 { "playerName", playerName },
                 { "playerId", playerId },
@@ -71,7 +71,7 @@ namespace Takaro.WebSocket
         
         public static WebSocketMessage CreatePlayerDisconnected(string playerName, string playerId, string steamId)
         {
-            return new WebSocketMessage("player_disconnected", new Dictionary<string, object>
+            return new WebSocketMessage("player-disconnected", new Dictionary<string, object>
             {
                 { "playerName", playerName },
                 { "playerId", playerId },
@@ -81,7 +81,7 @@ namespace Takaro.WebSocket
         
         public static WebSocketMessage CreateChatMessage(string playerName, string playerId, string steamId, string message)
         {
-            return new WebSocketMessage("chat_message", new Dictionary<string, object>
+            return new WebSocketMessage("chat-message", new Dictionary<string, object>
             {
                 { "playerName", playerName },
                 { "playerId", playerId },
@@ -93,7 +93,7 @@ namespace Takaro.WebSocket
         public static WebSocketMessage CreateEntityKilled(string killerName, string killerId, string killerSteamId,
             string entityName, string entityType)
         {
-            return new WebSocketMessage("entity_killed", new Dictionary<string, object>
+            return new WebSocketMessage("entity-killed", new Dictionary<string, object>
             {
                 { "killerName", killerName },
                 { "killerId", killerId },
