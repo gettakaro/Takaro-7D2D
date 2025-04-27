@@ -139,27 +139,43 @@ namespace Takaro.WebSocket
         {
             try
             {
-                Log.Out($"[Takaro] Received message: {message}");
-                
-                // Here you would handle incoming messages from the server
-                // For example, parsing commands to execute in the game
-                
-                // Deserialize the message
+                Log.Out($"[Takaro] Received WebSocket message: {message}");
                 var webSocketMessage = JsonConvert.DeserializeObject<WebSocketMessage>(message);
-                if (webSocketMessage == null)
+
+
+                if (webSocketMessage == null || webSocketMessage.Data == null)
                 {
-                    Log.Error("[Takaro] Received null message from WebSocket server");
+                    // No data in the message, so nothing to do
+                    return;
+                }
+
+                string requestId = webSocketMessage.RequestId;  
+
+                if (string.IsNullOrEmpty(requestId))
+                {
+                    Log.Warning("[Takaro] Received message without requestId");
+                    return;
+                }  
+
+                string action = null;
+                if (webSocketMessage.Data.ContainsKey("action"))
+                {
+                    action = webSocketMessage.Data["action"].ToString();
+                }
+                else
+                {
+                    // No action in the message, so nothing to do
                     return;
                 }
 
                 // Handle different message types
-                switch (webSocketMessage.Data["action"].ToString())
+                switch (action)
                 {
                     case "testReachability":
-                        // TODO...
+                        HandleTestReachability(requestId);
                         break;
                     default:
-                        Log.Warning($"[Takaro] Unknown message type: {webSocketMessage.Type}");
+                        Log.Warning($"[Takaro] Unknown message type: {action}");
                         break;
                 }
 
@@ -182,6 +198,7 @@ namespace Takaro.WebSocket
                 }
                 
                 string json = SerializeToJson(message);
+                Log.Out($"[Takaro] Sending WebSocket message: {json}");
                 _webSocket.Send(json);
             }
             catch (Exception ex)
@@ -265,6 +282,17 @@ namespace Takaro.WebSocket
             }
         }
 
+        #region Action Handlers
+
+        private void HandleTestReachability(string requestId)
+        {
+            SendMessage(WebSocketMessage.CreateTestReachabilityResponse(requestId));
+        }
+
+        #endregion
+
+        #region Event Handlers        
+
         // Public methods to send game events
         public void SendPlayerConnected(ClientInfo cInfo)
         {
@@ -312,5 +340,7 @@ namespace Takaro.WebSocket
                 entityType
             ));
         }
+
+        #endregion
     }
 }
