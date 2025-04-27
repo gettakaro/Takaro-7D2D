@@ -1,12 +1,12 @@
 using System;
-using System.Threading;
-using System.Text;
 using System.Collections.Generic;
-using WebSocketSharp;
-using System.Reflection;
-using Takaro.Config;
 using System.IO;
+using System.Reflection;
+using System.Text;
+using System.Threading;
 using Newtonsoft.Json;
+using Takaro.Config;
+using WebSocketSharp;
 
 namespace Takaro.WebSocket
 {
@@ -53,7 +53,9 @@ namespace Takaro.WebSocket
                 var config = ConfigManager.Instance;
                 if (!config.WebSocketEnabled)
                 {
-                    Log.Out("[Takaro] WebSocket client is disabled in config. Skipping initialization.");
+                    Log.Out(
+                        "[Takaro] WebSocket client is disabled in config. Skipping initialization."
+                    );
                     return;
                 }
 
@@ -95,13 +97,23 @@ namespace Takaro.WebSocket
                     Log.Out("[Takaro] WebSocket connection established");
 
                     // Send registration message
-                    if (string.IsNullOrEmpty(config.RegistrationToken) || string.IsNullOrEmpty(config.IdentityToken))
+                    if (
+                        string.IsNullOrEmpty(config.RegistrationToken)
+                        || string.IsNullOrEmpty(config.IdentityToken)
+                    )
                     {
-                        Log.Error("[Takaro] Registration token or identity token is not set in config.");
+                        Log.Error(
+                            "[Takaro] Registration token or identity token is not set in config."
+                        );
                         return;
                     }
 
-                    SendMessage(WebSocketMessage.CreateIdentify(config.RegistrationToken, config.IdentityToken));
+                    SendMessage(
+                        WebSocketMessage.CreateIdentify(
+                            config.RegistrationToken,
+                            config.IdentityToken
+                        )
+                    );
                     // Start heartbeat
                     StartHeartbeat();
                 };
@@ -161,7 +173,8 @@ namespace Takaro.WebSocket
                 }
 
                 // Handle the Payload property which could be a dictionary or array
-                Dictionary<string, object> payloadDict = webSocketMessage.Payload as Dictionary<string, object>;
+                Dictionary<string, object> payloadDict =
+                    webSocketMessage.Payload as Dictionary<string, object>;
 
                 if (payloadDict == null)
                 {
@@ -171,7 +184,9 @@ namespace Takaro.WebSocket
                     }
                     else
                     {
-                        Log.Warning("[Takaro] Received message with payload that is not a dictionary");
+                        Log.Warning(
+                            "[Takaro] Received message with payload that is not a dictionary"
+                        );
                         return;
                     }
                 }
@@ -238,13 +253,18 @@ namespace Takaro.WebSocket
         {
             StopHeartbeatTimer();
 
-            _heartbeatTimer = new Timer(state =>
-            {
-                if (_isConnected)
+            _heartbeatTimer = new Timer(
+                state =>
                 {
-                    SendMessage(WebSocketMessage.CreateHeartbeat());
-                }
-            }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+                    if (_isConnected)
+                    {
+                        SendMessage(WebSocketMessage.CreateHeartbeat());
+                    }
+                },
+                null,
+                TimeSpan.FromSeconds(30),
+                TimeSpan.FromSeconds(30)
+            );
         }
 
         private void StopHeartbeatTimer()
@@ -260,18 +280,27 @@ namespace Takaro.WebSocket
         {
             if (_reconnectAttempts >= MAX_RECONNECT_ATTEMPTS)
             {
-                Log.Error($"[Takaro] Maximum reconnection attempts ({MAX_RECONNECT_ATTEMPTS}) reached. Giving up.");
+                Log.Error(
+                    $"[Takaro] Maximum reconnection attempts ({MAX_RECONNECT_ATTEMPTS}) reached. Giving up."
+                );
                 return;
             }
 
             _reconnectAttempts++;
             var interval = TimeSpan.FromSeconds(ConfigManager.Instance.ReconnectIntervalSeconds);
-            Log.Out($"[Takaro] Scheduling reconnect attempt {_reconnectAttempts} in {interval.TotalSeconds} seconds");
+            Log.Out(
+                $"[Takaro] Scheduling reconnect attempt {_reconnectAttempts} in {interval.TotalSeconds} seconds"
+            );
 
-            _reconnectTimer = new Timer(state =>
-            {
-                ConnectToServer();
-            }, null, interval, Timeout.InfiniteTimeSpan);
+            _reconnectTimer = new Timer(
+                state =>
+                {
+                    ConnectToServer();
+                },
+                null,
+                interval,
+                Timeout.InfiniteTimeSpan
+            );
         }
 
         private void StopTimers()
@@ -310,10 +339,9 @@ namespace Takaro.WebSocket
         private void HandleTestReachability(string requestId)
         {
             WebSocketMessage message = WebSocketMessage.Create(
-                WebSocketMessage.MessageTypes.Response, new Dictionary<string, object>
-            {
-                { "connectable", true }
-            }, requestId
+                WebSocketMessage.MessageTypes.Response,
+                new Dictionary<string, object> { { "connectable", true } },
+                requestId
             );
             SendMessage(message);
         }
@@ -334,7 +362,9 @@ namespace Takaro.WebSocket
             }
 
             WebSocketMessage message = WebSocketMessage.Create(
-                WebSocketMessage.MessageTypes.Response, players.ToArray(), requestId
+                WebSocketMessage.MessageTypes.Response,
+                players.ToArray(),
+                requestId
             );
             SendMessage(message);
         }
@@ -344,84 +374,101 @@ namespace Takaro.WebSocket
             ClientInfo cInfo = Shared.GetClientInfoFromGameId(takaroGameId);
             if (cInfo == null)
             {
-                WebSocketMessage errorMessage = WebSocketMessage.CreateErrorResponse(requestId, "Player not found");
+                WebSocketMessage errorMessage = WebSocketMessage.CreateErrorResponse(
+                    requestId,
+                    "Player not found"
+                );
                 SendMessage(errorMessage);
                 return;
             }
             EntityPlayer player = GameManager.Instance.World.Players.dict[cInfo.entityId];
             Vector3i pos = new Vector3i(player.GetPosition());
             WebSocketMessage message = WebSocketMessage.Create(
-                WebSocketMessage.MessageTypes.Response, new Dictionary<string, object>
-            {
-                { "x", pos.x },
-                { "y", pos.y },
-                { "z", pos.z }
-            }, requestId
+                WebSocketMessage.MessageTypes.Response,
+                new Dictionary<string, object>
+                {
+                    { "x", pos.x },
+                    { "y", pos.y },
+                    { "z", pos.z }
+                },
+                requestId
             );
             SendMessage(message);
         }
 
         #endregion
 
-        #region Event Handlers        
+        #region Event Handlers
 
         // Public methods to send game events
         public void SendPlayerConnected(ClientInfo cInfo)
         {
-            if (cInfo == null) return;
+            if (cInfo == null)
+                return;
             WebSocketMessage message = WebSocketMessage.Create(
-                WebSocketMessage.MessageTypes.PlayerConnected, new Dictionary<string, object>
-            {
-                { "name", cInfo.playerName },
-                { "entityId", cInfo.entityId.ToString() },
-                { "platformId", cInfo.PlatformId.ToString() }
-            });
+                WebSocketMessage.MessageTypes.PlayerConnected,
+                new Dictionary<string, object>
+                {
+                    { "name", cInfo.playerName },
+                    { "entityId", cInfo.entityId.ToString() },
+                    { "platformId", cInfo.PlatformId.ToString() }
+                }
+            );
 
             SendMessage(message);
         }
 
         public void SendPlayerDisconnected(ClientInfo cInfo)
         {
-            if (cInfo == null) return;
+            if (cInfo == null)
+                return;
 
             WebSocketMessage message = WebSocketMessage.Create(
-                WebSocketMessage.MessageTypes.PlayerDisconnected, new Dictionary<string, object>
-            {
-                { "name", cInfo.playerName },
-                { "entityId", cInfo.entityId.ToString() },
-                { "platformId", cInfo.PlatformId.ToString() }
-            });
+                WebSocketMessage.MessageTypes.PlayerDisconnected,
+                new Dictionary<string, object>
+                {
+                    { "name", cInfo.playerName },
+                    { "entityId", cInfo.entityId.ToString() },
+                    { "platformId", cInfo.PlatformId.ToString() }
+                }
+            );
             SendMessage(message);
         }
 
         public void SendChatMessage(ClientInfo cInfo, string message)
         {
-            if (cInfo == null) return;
+            if (cInfo == null)
+                return;
 
             WebSocketMessage msg = WebSocketMessage.Create(
-                WebSocketMessage.MessageTypes.ChatMessage, new Dictionary<string, object>
-            {
-                { "name", cInfo.playerName },
-                { "entityId", cInfo.entityId.ToString() },
-                { "platformId", cInfo.PlatformId.ToString() },
-                { "message", message }
-            });
+                WebSocketMessage.MessageTypes.ChatMessage,
+                new Dictionary<string, object>
+                {
+                    { "name", cInfo.playerName },
+                    { "entityId", cInfo.entityId.ToString() },
+                    { "platformId", cInfo.PlatformId.ToString() },
+                    { "message", message }
+                }
+            );
             SendMessage(msg);
         }
 
         public void SendEntityKilled(ClientInfo killerInfo, string entityName, string entityType)
         {
-            if (killerInfo == null) return;
+            if (killerInfo == null)
+                return;
 
             WebSocketMessage msg = WebSocketMessage.Create(
-                WebSocketMessage.MessageTypes.EntityKilled, new Dictionary<string, object>
-            {
-                { "name", killerInfo.playerName },
-                { "entityId", killerInfo.entityId.ToString() },
-                { "platformId", killerInfo.PlatformId.ToString() },
-                { "entityName", entityName },
-                { "entityType", entityType }
-            });
+                WebSocketMessage.MessageTypes.EntityKilled,
+                new Dictionary<string, object>
+                {
+                    { "name", killerInfo.playerName },
+                    { "entityId", killerInfo.entityId.ToString() },
+                    { "platformId", killerInfo.PlatformId.ToString() },
+                    { "entityName", entityName },
+                    { "entityType", entityType }
+                }
+            );
             SendMessage(msg);
         }
 
