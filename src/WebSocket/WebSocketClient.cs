@@ -1,15 +1,58 @@
 using System;
-using System.Threading;
-using System.Text;
 using System.Collections.Generic;
-using WebSocketSharp;
-using System.Reflection;
-using Takaro.Config;
 using System.IO;
+using System.Reflection;
+using System.Text;
+using System.Threading;
 using Newtonsoft.Json;
+using Takaro.Config;
+using WebSocketSharp;
 
 namespace Takaro.WebSocket
 {
+    public class WebSocketArgs<T>
+    {
+        public static T Parse(object argsObject)
+        {
+            try
+            {
+                if (argsObject == null)
+                    return default;
+
+                // Handle case where args is already a string that needs deserialization
+                if (argsObject is string argsString)
+                {
+                    return JsonConvert.DeserializeObject<T>(argsString);
+                }
+
+                // Handle case where args is already a JObject or Dictionary
+                if (argsObject is Newtonsoft.Json.Linq.JObject jObject)
+                {
+                    return jObject.ToObject<T>();
+                }
+
+                if (argsObject is Dictionary<string, object> dict)
+                {
+                    string json = JsonConvert.SerializeObject(dict);
+                    return JsonConvert.DeserializeObject<T>(json);
+                }
+
+                // As a last resort, try direct conversion
+                return (T)Convert.ChangeType(argsObject, typeof(T));
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"[Takaro] Error parsing WebSocket args: {ex.Message}");
+                return default;
+            }
+        }
+    }
+
+    public class TakaroPlayerReferenceArgs
+    {
+        public string GameId { get; set; }
+    }
+
     public class WebSocketClient
     {
         private static WebSocketClient _instance;
@@ -19,7 +62,6 @@ namespace Takaro.WebSocket
         private Timer _heartbeatTimer;
         private Timer _reconnectTimer;
         private bool _isConnected = false;
-        private bool _isAuthenticated = false;
         private bool _shuttingDown = false;
         private int _reconnectAttempts = 0;
         private const int MAX_RECONNECT_ATTEMPTS = 5;
@@ -54,12 +96,14 @@ namespace Takaro.WebSocket
                 var config = ConfigManager.Instance;
                 if (!config.WebSocketEnabled)
                 {
-                    Log.Out("[Takaro] WebSocket client is disabled in config. Skipping initialization.");
+                    Log.Out(
+                        "[Takaro] WebSocket client is disabled in config. Skipping initialization."
+                    );
                     return;
                 }
 
                 Log.Out($"[Takaro] Initializing WebSocket client to {config.WebSocketUrl}");
-                
+
                 ConnectToServer();
             }
             catch (Exception ex)
@@ -88,45 +132,58 @@ namespace Takaro.WebSocket
                 }
 
                 _webSocket = new WebSocketSharp.WebSocket(config.WebSocketUrl);
-                
-                _webSocket.OnOpen += (sender, e) => {
+
+                _webSocket.OnOpen += (sender, e) =>
+                {
                     _isConnected = true;
                     _reconnectAttempts = 0;
                     Log.Out("[Takaro] WebSocket connection established");
-                    
+
                     // Send registration message
-                    if (string.IsNullOrEmpty(config.RegistrationToken) || string.IsNullOrEmpty(config.IdentityToken))
+                    if (
+                        string.IsNullOrEmpty(config.RegistrationToken)
+                        || string.IsNullOrEmpty(config.IdentityToken)
+                    )
                     {
-                        Log.Error("[Takaro] Registration token or identity token is not set in config.");
+                        Log.Error(
+                            "[Takaro] Registration token or identity token is not set in config."
+                        );
                         return;
                     }
-                    
-                    SendMessage(WebSocketMessage.CreateIdentify(config.RegistrationToken, config.IdentityToken));
+
+                    SendMessage(
+                        WebSocketMessage.CreateIdentify(
+                            config.RegistrationToken,
+                            config.IdentityToken
+                        )
+                    );
                     // Start heartbeat
                     StartHeartbeat();
                 };
-                
-                _webSocket.OnMessage += (sender, e) => {
+
+                _webSocket.OnMessage += (sender, e) =>
+                {
                     HandleMessage(e.Data);
                 };
-                
-                _webSocket.OnError += (sender, e) => {
+
+                _webSocket.OnError += (sender, e) =>
+                {
                     Log.Error($"[Takaro] WebSocket error: {e.Message}");
                 };
-                
-                _webSocket.OnClose += (sender, e) => {
+
+                _webSocket.OnClose += (sender, e) =>
+                {
                     _isConnected = false;
-                    _isAuthenticated = false;
                     Log.Out($"[Takaro] WebSocket connection closed: {e.Code} - {e.Reason}");
-                    
+
                     StopTimers();
-                    
+
                     if (!_shuttingDown)
                     {
                         ScheduleReconnect();
                     }
                 };
-                
+
                 _webSocket.Connect();
             }
             catch (Exception ex)
@@ -141,16 +198,90 @@ namespace Takaro.WebSocket
         {
             try
             {
-                Log.Out($"[Takaro] Received message: {message}");
-                
-                // Here you would handle incoming messages from the server
-                // For example, parsing commands to execute in the game
-                
-                // For now, we'll just acknowledge authentication
-                if (message.Contains("authenticated"))
+                Log.Out($"[Takaro] Received WebSocket message: {message}");
+                var webSocketMessage = JsonConvert.DeserializeObject<WebSocketMessage>(message);
+
+                if (webSocketMessage == null || webSocketMessage.Payload == null)
                 {
-                    _isAuthenticated = true;
-                    Log.Out("[Takaro] WebSocket authenticated successfully");
+                    // No data in the message, so nothing to do
+                    return;
+                }
+
+                string requestId = webSocketMessage.RequestId;
+
+                if (string.IsNullOrEmpty(requestId))
+                {
+                    Log.Warning("[Takaro] Received message without requestId");
+                    return;
+                }
+
+                // Handle the Payload property which could be a dictionary or array
+                Dictionary<string, object> payloadDict =
+                    webSocketMessage.Payload as Dictionary<string, object>;
+
+                if (payloadDict == null)
+                {
+                    if (webSocketMessage.Payload is Newtonsoft.Json.Linq.JObject jObject)
+                    {
+                        payloadDict = jObject.ToObject<Dictionary<string, object>>();
+                    }
+                    else
+                    {
+                        Log.Warning(
+                            "[Takaro] Received message with payload that is not a dictionary"
+                        );
+                        return;
+                    }
+                }
+
+                string action = null;
+                if (payloadDict.ContainsKey("action"))
+                {
+                    action = payloadDict["action"].ToString();
+                }
+                else
+                {
+                    // No action in the message, so nothing to do
+                    return;
+                }
+
+                // Extract args if present
+                object args = null;
+                if (payloadDict.ContainsKey("args"))
+                {
+                    args = payloadDict["args"];
+                }
+
+                // Handle different message types
+                switch (action)
+                {
+                    case "testReachability":
+                        HandleTestReachability(requestId);
+                        break;
+                    case "getPlayers":
+                        HandleGetPlayers(requestId);
+                        break;
+                    case "getPlayerLocation":
+                        var locationArgs = WebSocketArgs<TakaroPlayerReferenceArgs>.Parse(args);
+                        if (locationArgs == null || string.IsNullOrEmpty(locationArgs.GameId))
+                        {
+                            SendErrorResponse(requestId, "Invalid or missing gameId parameter");
+                            return;
+                        }
+                        HandleGetPlayerLocation(requestId, locationArgs.GameId);
+                        break;
+                    case "getPlayerInventory":
+                        var inventoryArgs = WebSocketArgs<TakaroPlayerReferenceArgs>.Parse(args);
+                        if (inventoryArgs == null || string.IsNullOrEmpty(inventoryArgs.GameId))
+                        {
+                            SendErrorResponse(requestId, "Invalid or missing gameId parameter");
+                            return;
+                        }
+                        HandleGetPlayerInventory(requestId, inventoryArgs.GameId);
+                        break;
+                    default:
+                        Log.Warning($"[Takaro] Unknown message type: {action}");
+                        break;
                 }
             }
             catch (Exception ex)
@@ -169,8 +300,9 @@ namespace Takaro.WebSocket
                     Log.Warning("[Takaro] Cannot send message - WebSocket not connected");
                     return;
                 }
-                
+
                 string json = SerializeToJson(message);
+                Log.Out($"[Takaro] Sending WebSocket message: {json}");
                 _webSocket.Send(json);
             }
             catch (Exception ex)
@@ -180,21 +312,36 @@ namespace Takaro.WebSocket
             }
         }
 
+        private void SendErrorResponse(string requestId, string errorMessage)
+        {
+            WebSocketMessage message = WebSocketMessage.CreateErrorResponse(
+                requestId,
+                errorMessage
+            );
+            SendMessage(message);
+        }
+
         private string SerializeToJson(WebSocketMessage message)
         {
-          return Newtonsoft.Json.JsonConvert.SerializeObject(message);
+            return Newtonsoft.Json.JsonConvert.SerializeObject(message);
         }
 
         private void StartHeartbeat()
         {
             StopHeartbeatTimer();
-            
-            _heartbeatTimer = new Timer(state => {
-                if (_isConnected)
+
+            _heartbeatTimer = new Timer(
+                state =>
                 {
-                    SendMessage(WebSocketMessage.CreateHeartbeat());
-                }
-            }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+                    if (_isConnected)
+                    {
+                        SendMessage(WebSocketMessage.CreateHeartbeat());
+                    }
+                },
+                null,
+                TimeSpan.FromSeconds(30),
+                TimeSpan.FromSeconds(30)
+            );
         }
 
         private void StopHeartbeatTimer()
@@ -210,23 +357,33 @@ namespace Takaro.WebSocket
         {
             if (_reconnectAttempts >= MAX_RECONNECT_ATTEMPTS)
             {
-                Log.Error($"[Takaro] Maximum reconnection attempts ({MAX_RECONNECT_ATTEMPTS}) reached. Giving up.");
+                Log.Error(
+                    $"[Takaro] Maximum reconnection attempts ({MAX_RECONNECT_ATTEMPTS}) reached. Giving up."
+                );
                 return;
             }
-            
+
             _reconnectAttempts++;
             var interval = TimeSpan.FromSeconds(ConfigManager.Instance.ReconnectIntervalSeconds);
-            Log.Out($"[Takaro] Scheduling reconnect attempt {_reconnectAttempts} in {interval.TotalSeconds} seconds");
-            
-            _reconnectTimer = new Timer(state => {
-                ConnectToServer();
-            }, null, interval, Timeout.InfiniteTimeSpan);
+            Log.Out(
+                $"[Takaro] Scheduling reconnect attempt {_reconnectAttempts} in {interval.TotalSeconds} seconds"
+            );
+
+            _reconnectTimer = new Timer(
+                state =>
+                {
+                    ConnectToServer();
+                },
+                null,
+                interval,
+                Timeout.InfiniteTimeSpan
+            );
         }
 
         private void StopTimers()
         {
             StopHeartbeatTimer();
-            
+
             if (_reconnectTimer != null)
             {
                 _reconnectTimer.Dispose();
@@ -250,57 +407,228 @@ namespace Takaro.WebSocket
                 {
                     _webSocket = null;
                     _isConnected = false;
-                    _isAuthenticated = false;
                 }
             }
         }
 
+        #region Action Handlers
+
+        private void HandleTestReachability(string requestId)
+        {
+            WebSocketMessage message = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.Response,
+                new Dictionary<string, object> { { "connectable", true } },
+                requestId
+            );
+            SendMessage(message);
+        }
+
+        private void HandleGetPlayers(string requestId)
+        {
+            List<TakaroPlayer> players = new List<TakaroPlayer>();
+            foreach (var player in GameManager.Instance.World.Players.list)
+            {
+                int entityId = player.entityId;
+                ClientInfo cInfo = ConnectionManager.Instance.Clients.ForEntityId(entityId);
+
+                TakaroPlayer takaroPlayer = Shared.TransformClientInfoToTakaroPlayer(cInfo);
+                if (takaroPlayer != null)
+                {
+                    players.Add(takaroPlayer);
+                }
+            }
+
+            WebSocketMessage message = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.Response,
+                players.ToArray(),
+                requestId
+            );
+            SendMessage(message);
+        }
+
+        private void HandleGetPlayerLocation(string requestId, string gameId)
+        {
+            ClientInfo cInfo = Shared.GetClientInfoFromGameId(gameId);
+            if (cInfo == null)
+            {
+                SendErrorResponse(requestId, "Player not found");
+                return;
+            }
+
+            EntityPlayer player = GameManager.Instance.World.Players.dict[cInfo.entityId];
+            if (player == null)
+            {
+                SendErrorResponse(requestId, "Player entity not found");
+                return;
+            }
+
+            Vector3i pos = new Vector3i(player.GetPosition());
+            WebSocketMessage message = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.Response,
+                new Dictionary<string, object>
+                {
+                    { "x", pos.x },
+                    { "y", pos.y },
+                    { "z", pos.z }
+                },
+                requestId
+            );
+            SendMessage(message);
+        }
+
+        private void HandleGetPlayerInventory(string requestId, string gameId)
+        {
+            ClientInfo cInfo = Shared.GetClientInfoFromGameId(gameId);
+            if (cInfo == null)
+            {
+                SendErrorResponse(requestId, "Player not found");
+                return;
+            }
+
+            List<TakaroItem> items = new List<TakaroItem>();
+
+            ProcessItemStacks(cInfo.latestPlayerData.inventory, items);
+            ProcessItemStacks(cInfo.latestPlayerData.bag, items);
+            ProcessEquippedItems(cInfo.latestPlayerData.equipment.GetItems(), items);
+
+            WebSocketMessage message = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.Response,
+                items.ToArray(),
+                requestId
+            );
+            SendMessage(message);
+        }
+
+        private void ProcessItemStacks(ItemStack[] itemStacks, List<TakaroItem> itemsList)
+        {
+            if (itemStacks == null)
+                return;
+
+            foreach (var item in itemStacks)
+            {
+                ItemValue itemValue = item.itemValue;
+
+                if (itemValue == null || itemValue.Equals(ItemValue.None))
+                {
+                    continue;
+                }
+
+                ItemClass itemClass = itemValue.ItemClass;
+                TakaroItem takaroItem = new TakaroItem
+                {
+                    Name = itemClass.GetItemName(),
+                    Code = itemClass.GetItemName(),
+                    Description = "TODO: fetch description",
+                    Amount = item.count,
+                    Quality = itemValue.Quality.ToString(),
+                };
+
+                itemsList.Add(takaroItem);
+            }
+        }
+
+        private void ProcessEquippedItems(ItemValue[] equippedItems, List<TakaroItem> itemsList)
+        {
+            if (equippedItems == null)
+                return;
+
+            foreach (var itemValue in equippedItems)
+            {
+                if (itemValue == null || itemValue.Equals(ItemValue.None))
+                {
+                    continue;
+                }
+
+                ItemClass itemClass = itemValue.ItemClass;
+                TakaroItem takaroItem = new TakaroItem
+                {
+                    Name = itemClass.GetItemName(),
+                    Code = itemClass.GetItemName(),
+                    Description = "TODO: fetch description",
+                    Amount = 1,
+                    Quality = itemValue.Quality.ToString(),
+                };
+
+                itemsList.Add(takaroItem);
+            }
+        }
+
+        #endregion
+
+        #region Event Handlers
+
         // Public methods to send game events
         public void SendPlayerConnected(ClientInfo cInfo)
         {
-            if (cInfo == null) return;
-            
-            SendMessage(WebSocketMessage.CreatePlayerConnected(
-                cInfo.playerName,
-                cInfo.entityId.ToString(),
-                cInfo.PlatformId.ToString()
-            ));
+            if (cInfo == null)
+                return;
+            WebSocketMessage message = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.PlayerConnected,
+                new Dictionary<string, object>
+                {
+                    { "name", cInfo.playerName },
+                    { "entityId", cInfo.entityId.ToString() },
+                    { "platformId", cInfo.PlatformId.ToString() }
+                }
+            );
+
+            SendMessage(message);
         }
 
         public void SendPlayerDisconnected(ClientInfo cInfo)
         {
-            if (cInfo == null) return;
-            
-            SendMessage(WebSocketMessage.CreatePlayerDisconnected(
-                cInfo.playerName,
-                cInfo.entityId.ToString(),
-                cInfo.PlatformId.ToString()
-            ));
+            if (cInfo == null)
+                return;
+
+            WebSocketMessage message = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.PlayerDisconnected,
+                new Dictionary<string, object>
+                {
+                    { "name", cInfo.playerName },
+                    { "entityId", cInfo.entityId.ToString() },
+                    { "platformId", cInfo.PlatformId.ToString() }
+                }
+            );
+            SendMessage(message);
         }
 
         public void SendChatMessage(ClientInfo cInfo, string message)
         {
-            if (cInfo == null) return;
-            
-            SendMessage(WebSocketMessage.CreateChatMessage(
-                cInfo.playerName,
-                cInfo.entityId.ToString(),
-                cInfo.PlatformId.ToString(),
-                message
-            ));
+            if (cInfo == null)
+                return;
+
+            WebSocketMessage msg = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.ChatMessage,
+                new Dictionary<string, object>
+                {
+                    { "name", cInfo.playerName },
+                    { "entityId", cInfo.entityId.ToString() },
+                    { "platformId", cInfo.PlatformId.ToString() },
+                    { "message", message }
+                }
+            );
+            SendMessage(msg);
         }
 
         public void SendEntityKilled(ClientInfo killerInfo, string entityName, string entityType)
         {
-            if (killerInfo == null) return;
-            
-            SendMessage(WebSocketMessage.CreateEntityKilled(
-                killerInfo.playerName,
-                killerInfo.entityId.ToString(),
-                killerInfo.PlatformId.ToString(),
-                entityName,
-                entityType
-            ));
+            if (killerInfo == null)
+                return;
+
+            WebSocketMessage msg = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.EntityKilled,
+                new Dictionary<string, object>
+                {
+                    { "name", killerInfo.playerName },
+                    { "entityId", killerInfo.entityId.ToString() },
+                    { "platformId", killerInfo.PlatformId.ToString() },
+                    { "entityName", entityName },
+                    { "entityType", entityType }
+                }
+            );
+            SendMessage(msg);
         }
+
+        #endregion
     }
 }
