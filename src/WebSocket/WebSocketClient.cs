@@ -10,6 +10,49 @@ using WebSocketSharp;
 
 namespace Takaro.WebSocket
 {
+    public class WebSocketArgs<T>
+    {
+        public static T Parse(object argsObject)
+        {
+            try
+            {
+                if (argsObject == null)
+                    return default;
+
+                // Handle case where args is already a string that needs deserialization
+                if (argsObject is string argsString)
+                {
+                    return JsonConvert.DeserializeObject<T>(argsString);
+                }
+
+                // Handle case where args is already a JObject or Dictionary
+                if (argsObject is Newtonsoft.Json.Linq.JObject jObject)
+                {
+                    return jObject.ToObject<T>();
+                }
+
+                if (argsObject is Dictionary<string, object> dict)
+                {
+                    string json = JsonConvert.SerializeObject(dict);
+                    return JsonConvert.DeserializeObject<T>(json);
+                }
+
+                // As a last resort, try direct conversion
+                return (T)Convert.ChangeType(argsObject, typeof(T));
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"[Takaro] Error parsing WebSocket args: {ex.Message}");
+                return default;
+            }
+        }
+    }
+
+    public class PlayerLocationArgs
+    {
+        public string GameId { get; set; }
+    }
+
     public class WebSocketClient
     {
         private static WebSocketClient _instance;
@@ -202,6 +245,13 @@ namespace Takaro.WebSocket
                     return;
                 }
 
+                // Extract args if present
+                object args = null;
+                if (payloadDict.ContainsKey("args"))
+                {
+                    args = payloadDict["args"];
+                }
+
                 // Handle different message types
                 switch (action)
                 {
@@ -210,6 +260,15 @@ namespace Takaro.WebSocket
                         break;
                     case "getPlayers":
                         HandleGetPlayers(requestId);
+                        break;
+                    case "getPlayerLocation":
+                        var locationArgs = WebSocketArgs<PlayerLocationArgs>.Parse(args);
+                        if (locationArgs == null || string.IsNullOrEmpty(locationArgs.GameId))
+                        {
+                            SendErrorResponse(requestId, "Invalid or missing gameId parameter");
+                            return;
+                        }
+                        HandleGetPlayerLocation(requestId, locationArgs.GameId);
                         break;
                     default:
                         Log.Warning($"[Takaro] Unknown message type: {action}");
@@ -242,6 +301,15 @@ namespace Takaro.WebSocket
                 Log.Error($"[Takaro] Error sending WebSocket message: {ex.Message}");
                 Log.Exception(ex);
             }
+        }
+
+        private void SendErrorResponse(string requestId, string errorMessage)
+        {
+            WebSocketMessage message = WebSocketMessage.CreateErrorResponse(
+                requestId,
+                errorMessage
+            );
+            SendMessage(message);
         }
 
         private string SerializeToJson(WebSocketMessage message)
@@ -369,19 +437,22 @@ namespace Takaro.WebSocket
             SendMessage(message);
         }
 
-        private void HandleGetPlayerLocation(string requestId, string takaroGameId)
+        private void HandleGetPlayerLocation(string requestId, string gameId)
         {
-            ClientInfo cInfo = Shared.GetClientInfoFromGameId(takaroGameId);
+            ClientInfo cInfo = Shared.GetClientInfoFromGameId(gameId);
             if (cInfo == null)
             {
-                WebSocketMessage errorMessage = WebSocketMessage.CreateErrorResponse(
-                    requestId,
-                    "Player not found"
-                );
-                SendMessage(errorMessage);
+                SendErrorResponse(requestId, "Player not found");
                 return;
             }
+
             EntityPlayer player = GameManager.Instance.World.Players.dict[cInfo.entityId];
+            if (player == null)
+            {
+                SendErrorResponse(requestId, "Player entity not found");
+                return;
+            }
+
             Vector3i pos = new Vector3i(player.GetPosition());
             WebSocketMessage message = WebSocketMessage.Create(
                 WebSocketMessage.MessageTypes.Response,
