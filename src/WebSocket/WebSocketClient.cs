@@ -48,7 +48,7 @@ namespace Takaro.WebSocket
         }
     }
 
-    public class PlayerLocationArgs
+    public class TakaroPlayerReferenceArgs
     {
         public string GameId { get; set; }
     }
@@ -262,13 +262,22 @@ namespace Takaro.WebSocket
                         HandleGetPlayers(requestId);
                         break;
                     case "getPlayerLocation":
-                        var locationArgs = WebSocketArgs<PlayerLocationArgs>.Parse(args);
+                        var locationArgs = WebSocketArgs<TakaroPlayerReferenceArgs>.Parse(args);
                         if (locationArgs == null || string.IsNullOrEmpty(locationArgs.GameId))
                         {
                             SendErrorResponse(requestId, "Invalid or missing gameId parameter");
                             return;
                         }
                         HandleGetPlayerLocation(requestId, locationArgs.GameId);
+                        break;
+                    case "getPlayerInventory":
+                        var inventoryArgs = WebSocketArgs<TakaroPlayerReferenceArgs>.Parse(args);
+                        if (inventoryArgs == null || string.IsNullOrEmpty(inventoryArgs.GameId))
+                        {
+                            SendErrorResponse(requestId, "Invalid or missing gameId parameter");
+                            return;
+                        }
+                        HandleGetPlayerInventory(requestId, inventoryArgs.GameId);
                         break;
                     default:
                         Log.Warning($"[Takaro] Unknown message type: {action}");
@@ -416,7 +425,7 @@ namespace Takaro.WebSocket
 
         private void HandleGetPlayers(string requestId)
         {
-            var players = new List<TakaroPlayer>();
+            List<TakaroPlayer> players = new List<TakaroPlayer>();
             foreach (var player in GameManager.Instance.World.Players.list)
             {
                 int entityId = player.entityId;
@@ -465,6 +474,83 @@ namespace Takaro.WebSocket
                 requestId
             );
             SendMessage(message);
+        }
+
+        private void HandleGetPlayerInventory(string requestId, string gameId)
+        {
+            ClientInfo cInfo = Shared.GetClientInfoFromGameId(gameId);
+            if (cInfo == null)
+            {
+                SendErrorResponse(requestId, "Player not found");
+                return;
+            }
+
+            List<TakaroItem> items = new List<TakaroItem>();
+
+            ProcessItemStacks(cInfo.latestPlayerData.inventory, items);
+            ProcessItemStacks(cInfo.latestPlayerData.bag, items);
+            ProcessEquippedItems(cInfo.latestPlayerData.equipment.GetItems(), items);
+
+            WebSocketMessage message = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.Response,
+                items.ToArray(),
+                requestId
+            );
+            SendMessage(message);
+        }
+
+        private void ProcessItemStacks(ItemStack[] itemStacks, List<TakaroItem> itemsList)
+        {
+            if (itemStacks == null)
+                return;
+
+            foreach (var item in itemStacks)
+            {
+                ItemValue itemValue = item.itemValue;
+
+                if (itemValue == null || itemValue.Equals(ItemValue.None))
+                {
+                    continue;
+                }
+
+                ItemClass itemClass = itemValue.ItemClass;
+                TakaroItem takaroItem = new TakaroItem
+                {
+                    Name = itemClass.GetItemName(),
+                    Code = itemClass.GetItemName(),
+                    Description = "TODO: fetch description",
+                    Amount = item.count,
+                    Quality = itemValue.Quality.ToString(),
+                };
+
+                itemsList.Add(takaroItem);
+            }
+        }
+
+        private void ProcessEquippedItems(ItemValue[] equippedItems, List<TakaroItem> itemsList)
+        {
+            if (equippedItems == null)
+                return;
+
+            foreach (var itemValue in equippedItems)
+            {
+                if (itemValue == null || itemValue.Equals(ItemValue.None))
+                {
+                    continue;
+                }
+
+                ItemClass itemClass = itemValue.ItemClass;
+                TakaroItem takaroItem = new TakaroItem
+                {
+                    Name = itemClass.GetItemName(),
+                    Code = itemClass.GetItemName(),
+                    Description = "TODO: fetch description",
+                    Amount = 1,
+                    Quality = itemValue.Quality.ToString(),
+                };
+
+                itemsList.Add(takaroItem);
+            }
         }
 
         #endregion

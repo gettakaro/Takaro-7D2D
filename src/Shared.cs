@@ -23,6 +23,24 @@ namespace Takaro
         public string XboxLiveId { get; set; }
     }
 
+    public class TakaroItem
+    {
+        [JsonProperty("name")]
+        public string Name { get; set; }
+
+        [JsonProperty("code")]
+        public string Code { get; set; }
+
+        [JsonProperty("description")]
+        public string Description { get; set; }
+
+        [JsonProperty("amount")]
+        public int Amount { get; set; }
+
+        [JsonProperty("quality")]
+        public string Quality { get; set; }
+    }
+
     public static class Shared
     {
         public static ClientInfo GetClientInfoFromGameId(string gameId)
