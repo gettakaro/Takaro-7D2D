@@ -1,41 +1,58 @@
-version: '3'
 services:
-  7dtdserver:
-    image: vinanrra/7dtd-server
-    container_name: 7dtdserver
-    environment:
-      - START_MODE=3 # Change between START MODES
-      - PUID=1000 # Remember to use same as your user
-      - PGID=1000 # Remember to use same as your user
-      - TimeZone=Europe/Brussels # Optional - Change Timezone
-      - UPDATE_MODS=NO # Optional - This will allow mods to be update on start, each mod also need to have XXXX_UPDATE=YES to update on start
-      - ALLOC_FIXES=NO # Optional - Install ALLOC FIXES
-      - ALLOC_FIXES_UPDATE=NO # Optional - Update Allocs Fixes before server start
-      - CPM=NO # Optional - CSMM Patron's Mod (CPM)
-      - CPM_UPDATE=NO # Optional - Update BepInEx before server start
-      - BACKUP=NO # Optional - Backup server at 5 AM
-      - MONITOR=NO # Optional - Keeps server up if crash
-      - VERSION=latest_experimental
+  # SteamCMD service for downloading game files
+  steamcmd:
+    image: cm2network/steamcmd:latest
+    user: "${UID:-1000}:${GID:-1000}"
     volumes:
-      - ./_data/7DaysToDie:/home/sdtdserver/.local/share/7DaysToDie/
-      - ./_data/LGSM-Config:/home/sdtdserver/lgsm/config-lgsm/sdtdserver
-      - ./_data/ServerFiles:/home/sdtdserver/serverfiles/ # Optional - serverfiles folder
-      - ./_data/log:/home/sdtdserver/log/ # Optional - Logs folder
-      - ./_data/backups:/home/sdtdserver/lgsm/backup/ # Optional - If BAKCUP=NO, backups folder
-    ports:
-      - 26900:26900/tcp # Default game ports
-      - 26900:26900/udp # Default game ports
-      - 26901:26901/udp # Default game ports
-      - 26902:26902/udp # Default game ports
-      - 8080:8080/tcp # OPTIONAL - WEBADMIN
-      - 8081:8081/tcp # OPTIONAL - TELNET
-      - 8082:8082/tcp # OPTIONAL - WEBSERVER https://7dtd.illy.bz/wiki/Server%20fixes
-      - 8083:8083/tcp # OPTIONAL - CPM (?)
+      - ./_data/game-files:/game
+    command: >
+      bash -c "/home/steam/steamcmd/steamcmd.sh +force_install_dir /game +login anonymous +app_update 294420 validate +quit"
+
+
+  # Builder service for compiling the mod
   builder:
     build:
       context: .
       dockerfile: Dockerfile.builder
     volumes:
       - ./:/app
-      - ./_data/ServerFiles:/game-server-files
+      - ./_data/7dtd-binaries:/app/_data/7dtd-binaries
       - ./_data/build:/app/bin
+      - ./_data/lib:/app/lib
+    command: ["bash", "-c", "echo 'Builder container ready' && tail -f /dev/null"]
+
+  # Game server service (for reference/testing)
+  7dtdserver:
+    image: vinanrra/7dtd-server
+    environment:
+      - START_MODE=3
+      - PUID=1000
+      - PGID=1000
+      - TimeZone=Europe/Brussels
+      - VERSION=latest_experimental
+    volumes:
+      - ./_data/ServerFiles:/home/sdtdserver/serverfiles/
+      - ./_data/7DaysToDie:/home/sdtdserver/.local/share/7DaysToDie/
+      - ./_data/7d2d-log:/home/sdtdserver/log/
+    ports:
+      - "26900-26902:26900-26902/udp"
+      - "26900:26900/tcp"
+      - "8080-8083:8080-8083/tcp"
+
+  # Dependency service for fetching and building dependencies
+  deps:
+    build:
+      context: .
+      dockerfile: Dockerfile.builder
+    volumes:
+      - ./_data/7dtd-binaries:/binaries
+      - ./_data/lib:/app/lib
+    command: >
+      bash -c "
+        git clone https://github.com/sta/websocket-sharp.git /tmp/websocket-sharp &&
+        cd /tmp/websocket-sharp &&
+        xbuild /p:Configuration=Release websocket-sharp.sln &&
+        cp /tmp/websocket-sharp/Example/bin/Release/websocket-sharp.dll /binaries/ &&
+        cp /tmp/websocket-sharp/Example/bin/Release/websocket-sharp.dll /app/lib/ &&
+        nuget install Newtonsoft.Json -Version 13.0.1 -OutputDirectory /tmp &&
+        cp -r /tmp/Newtonsoft.Json.13.0.1 /binaries/"

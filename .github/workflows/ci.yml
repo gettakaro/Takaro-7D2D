@@ -1,0 +1,99 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  merge_group:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Make scripts executable
+        run: chmod +x ./scripts/*.sh
+
+      - name: Set up environment
+        run: ./scripts/setup-environment.sh
+
+      - name: Build mod
+        run: ./scripts/build-mod.sh
+      
+      - name: List build outputs
+        run: find _data/build -type f | sort
+
+      - name: Create mod package
+        run: |
+          mkdir -p dist
+          cp -r _data/build/Mods ./dist
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: takaro-mod
+          path: ./dist
+  
+  release:
+    needs: build
+    if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4.3.0
+        with:
+          name: takaro-mod
+          path: ./dist
+
+      - name: Set version
+        id: set-version
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            # Use tag name as version
+            VERSION=${GITHUB_REF#refs/tags/}
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "release_name=Release $VERSION" >> $GITHUB_OUTPUT
+          else
+            # Use timestamp as version
+            TIMESTAMP=$(date +'%Y%m%d%H%M%S')
+            VERSION="dev-$TIMESTAMP"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "release_name=Development Build $VERSION" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Zip mods
+        run: |
+          cd dist
+          zip -r takaro-mod.zip Mods
+          cd ..
+
+      - name: Debug files
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Files in current directory:"
+          ls -la
+          echo "Files in dist"
+          ls -la dist
+          find dist -type f          
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.set-version.outputs.version }}
+          name: ${{ steps.set-version.outputs.release_name }}
+          draft: false
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          files: ./dist/takaro-mod.zip
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          token: ${{ secrets.GITHUB_TOKEN }}

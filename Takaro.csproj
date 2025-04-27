@@ -7,8 +7,8 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>{771240CA-9B22-4AFE-A422-959E74B645B2}</ProjectGuid>
     <OutputType>Library</OutputType>
-    <RootNamespace>Takaro7D2D</RootNamespace>
-    <AssemblyName>Takaro7D2D</AssemblyName>
+    <RootNamespace>Takaro</RootNamespace>
+    <AssemblyName>Takaro</AssemblyName>
     <UseMSBuildEngine>True</UseMSBuildEngine>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <NuGetPackageImportStamp>
@@ -17,7 +17,7 @@
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <Optimize>true</Optimize>
-    <OutputPath>bin\Mods\Takaro7D2D\</OutputPath>
+    <OutputPath>bin\Mods\Takaro\</OutputPath>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <ConsolePause>false</ConsolePause>
@@ -54,6 +54,9 @@
       <HintPath>_data\7dtd-binaries\mscorlib.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>_data\7dtd-binaries\Newtonsoft.Json.13.0.1\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
     <Reference Include="System">
       <HintPath>_data\7dtd-binaries\System.dll</HintPath>
       <Private>False</Private>
@@ -73,9 +76,17 @@
       <HintPath>_data\7dtd-binaries\UnityEngine.ImageConversionModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="websocket-sharp">
+      <HintPath>_data\7dtd-binaries\websocket-sharp.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Runtime.Serialization" />    
   </ItemGroup>
   <ItemGroup>
     <Compile Include="src\API.cs" />
+    <Compile Include="src\WebSocket\WebSocketClient.cs" />
+    <Compile Include="src\WebSocket\WebSocketMessage.cs" />
+    <Compile Include="src\Config\ConfigManager.cs" />
+    <Compile Include="src\Shared.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ModInfo.xml">
