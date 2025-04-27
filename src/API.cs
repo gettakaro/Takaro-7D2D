@@ -12,14 +12,14 @@ namespace Takaro
         public void InitMod(Mod mod)
         {
             Log.Out("[Takaro] Initializing mod");
-            
+
             // Initialize config
             ConfigManager.Instance.LoadConfig();
-            
+
             // Initialize WebSocket client
             _webSocketClient = WebSocketClient.Instance;
             _webSocketClient.Initialize();
-            
+
             // Register event handlers
             ModEvents.GameStartDone.RegisterHandler(GameAwake);
             ModEvents.GameShutdown.RegisterHandler(GameShutdown);
@@ -31,11 +31,17 @@ namespace Takaro
             ModEvents.EntityKilled.RegisterHandler(EntityKilled);
             ModEvents.GameMessage.RegisterHandler(GameMessage);
             ModEvents.CalcChunkColorsDone.RegisterHandler(CalcChunkColorsDone);
-            
+
             Log.Out("[Takaro] Mod initialized successfully");
         }
 
-        private bool GameMessage(ClientInfo cInfo, EnumGameMessages type, string msg, string mainName, string secondaryName)
+        private bool GameMessage(
+            ClientInfo cInfo,
+            EnumGameMessages type,
+            string msg,
+            string mainName,
+            string secondaryName
+        )
         {
             return true;
         }
@@ -48,7 +54,7 @@ namespace Takaro
         private void GameShutdown()
         {
             Log.Out("[Takaro] Game shutting down");
-            
+
             // Shutdown WebSocket client
             _webSocketClient?.Shutdown();
         }
@@ -68,27 +74,35 @@ namespace Takaro
             {
                 if (entOffender.entityType == EntityType.Player)
                 {
-                    ClientInfo ci = ConsoleHelper.ParseParamIdOrName(entOffender.entityId.ToString());
-                    if (ci == null) return;
+                    ClientInfo ci = ConsoleHelper.ParseParamIdOrName(
+                        entOffender.entityId.ToString()
+                    );
+                    if (ci == null)
+                        return;
                     EntityAlive ea = entKilled as EntityAlive;
-                    if (ea == null) return;
-                    
+                    if (ea == null)
+                        return;
+
                     string entityType = "unknown";
                     if (entKilled.entityType == EntityType.Zombie)
                     {
                         entityType = "zombie";
-                        Log.Out($"[Takaro] Entity killed: {ci.playerName} ({ci.PlatformId}) killed zombie {ea.EntityName}");
+                        Log.Out(
+                            $"[Takaro] Entity killed: {ci.playerName} ({ci.PlatformId}) killed zombie {ea.EntityName}"
+                        );
                     }
                     else if (entKilled.entityType == EntityType.Animal)
                     {
                         entityType = "animal";
-                        Log.Out($"[Takaro] Entity killed: {ci.playerName} ({ci.PlatformId}) killed animal {ea.EntityName}");
+                        Log.Out(
+                            $"[Takaro] Entity killed: {ci.playerName} ({ci.PlatformId}) killed animal {ea.EntityName}"
+                        );
                     }
                     else
                     {
                         entityType = entKilled.entityType.ToString().ToLower();
                     }
-                    
+
                     _webSocketClient?.SendEntityKilled(ci, ea.EntityName, entityType);
                 }
             }
@@ -96,9 +110,13 @@ namespace Takaro
 
         private void PlayerSpawnedInWorld(ClientInfo cInfo, RespawnType respawnReason, Vector3i pos)
         {
-            if (cInfo == null) return;
-            
-            if (respawnReason == RespawnType.JoinMultiplayer || respawnReason == RespawnType.EnterMultiplayer)
+            if (cInfo == null)
+                return;
+
+            if (
+                respawnReason == RespawnType.JoinMultiplayer
+                || respawnReason == RespawnType.EnterMultiplayer
+            )
             {
                 Log.Out($"[Takaro] Player connected: {cInfo.playerName} ({cInfo.PlatformId})");
                 _webSocketClient?.SendPlayerConnected(cInfo);
@@ -115,7 +133,14 @@ namespace Takaro
             return true;
         }
 
-        private bool ChatMessage(ClientInfo cInfo, EChatType type, int senderId, string msg, string mainName, List<int> recipientEntityIds)
+        private bool ChatMessage(
+            ClientInfo cInfo,
+            EChatType type,
+            int senderId,
+            string msg,
+            string mainName,
+            List<int> recipientEntityIds
+        )
         {
             if (cInfo != null && type == EChatType.Global)
             {
