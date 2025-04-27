@@ -1,0 +1,44 @@
+name: Code Style
+
+on:
+  push:
+    branches:
+      - '**'
+      - '!renovate/**'
+
+jobs:
+  codestyle:
+    name: Run CSharpier and Commit Changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate token
+        id: generate_token
+        uses: tibdex/github-app-token@v2
+        with:
+          app_id: ${{ secrets.TAKARO_CI_APP_ID }}
+          private_key: ${{ secrets.TAKARO_CI_APP_PRIV_KEY }}
+          
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ steps.generate_token.outputs.token }}
+          
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        
+      - name: Install CSharpier
+        run: dotnet tool restore
+        
+      - name: Run CSharpier
+        run: dotnet csharpier .
+        
+      - name: Commit and push if changed
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit."
+          else
+            git config --global user.name 'takaro-ci-bot[bot]'
+            git config --global user.email '138661031+takaro-ci-bot[bot]@users.noreply.github.com'
+            git commit -am "chore: code style formatting"
+            git push
+          fi
