@@ -86,6 +86,7 @@
     <Compile Include="src\WebSocket\WebSocketClient.cs" />
     <Compile Include="src\WebSocket\WebSocketMessage.cs" />
     <Compile Include="src\Config\ConfigManager.cs" />
+    <Compile Include="src\Shared.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ModInfo.xml">

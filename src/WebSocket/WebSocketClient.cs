@@ -314,39 +314,26 @@ namespace Takaro.WebSocket
 
         private void HandleGetPlayers(string requestId)
         {
-            var players = new List<Dictionary<string, object>>();
+            var players = new List<TakaroPlayer>();
             foreach (var player in GameManager.Instance.World.Players.list)
             {
                 int entityId = player.entityId;
                 ClientInfo cInfo = ConnectionManager.Instance.Clients.ForEntityId(entityId);
 
-                var playerInfo = new Dictionary<string, object>
+                TakaroPlayer takaroPlayer = Shared.TransformClientInfoToTakaroPlayer(cInfo);
+                if (takaroPlayer != null)
                 {
-                    // Takaro gameId is the EOS ID (CrossPlatform ID) without the EOS_ prefix
-                    { "gameId",cInfo.CrossplatformId.CombinedString.Replace("EOS_", "") },
-                    { "name", cInfo.playerName },
-                    { "ip", cInfo.ip },
-                    { "ping", cInfo.ping },
-                };
-
-                if (cInfo.PlatformId != null)
-                {
-                    if (cInfo.PlatformId.CombinedString != null && cInfo.PlatformId.CombinedString.StartsWith("Steam_"))
-                    {
-                        playerInfo.Add("steamId", cInfo.PlatformId.CombinedString.Replace("Steam_", ""));
-                    }
-
-                    if (cInfo.PlatformId.CombinedString != null && cInfo.PlatformId.CombinedString.StartsWith("XBL_"))
-                    {
-                        playerInfo.Add("xboxLiveId", cInfo.PlatformId.CombinedString.Replace("XBL_", ""));
-                    }
-
+                    players.Add(takaroPlayer);
                 }
-
-                players.Add(playerInfo);
             }
 
             SendMessage(WebSocketMessage.CreatePlayersResponse(requestId, players));
+        }
+
+        private void HandleGetPlayerLocation(string requestId, string takaroGameId)
+        {
+            var players = new List<Dictionary<string, object>>();
+
         }
 
         #endregion

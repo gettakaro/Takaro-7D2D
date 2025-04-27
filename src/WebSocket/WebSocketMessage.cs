@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
 using Newtonsoft.Json;
+using Takaro;
 
 namespace Takaro.WebSocket
 {
@@ -29,15 +30,14 @@ namespace Takaro.WebSocket
         {
             Type = type;
             RequestId = requestId;
-            Payload = data ?? new Dictionary<string, object>();
+            Payload = data;
         }
 
-        // New constructor for array payloads
-        public WebSocketMessage(string type, List<Dictionary<string, object>> arrayData, string requestId = null)
+        public WebSocketMessage(string type, object[] objectArray, string requestId = null)
         {
             Type = type;
             RequestId = requestId;
-            Payload = arrayData ?? new List<Dictionary<string, object>>();
+            Payload = objectArray;
         }
 
         // Basic message types
@@ -106,19 +106,16 @@ namespace Takaro.WebSocket
         // Response messages
         public static WebSocketMessage CreateResponse(string requestId, object data)
         {
-            // If data is already a Dictionary<string, object>, use it directly
             if (data is Dictionary<string, object> dictData)
             {
                 return new WebSocketMessage("response", dictData, requestId);
             }
             
-            // If data is a List<Dictionary<string, object>>, use the array constructor
-            if (data is List<Dictionary<string, object>> listData)
+            if (data is object[] listData)
             {
                 return new WebSocketMessage("response", listData, requestId);
             }
-            
-            // Otherwise, convert the data to a Dictionary with appropriate key(s)
+
             var payload = new Dictionary<string, object>();
             
             if (data != null)
@@ -180,10 +177,9 @@ namespace Takaro.WebSocket
             return new WebSocketMessage("response", playerData, requestId);
         }
         
-        // Modified to pass array directly as payload
-        public static WebSocketMessage CreatePlayersResponse(string requestId, List<Dictionary<string, object>> playersData)
+        public static WebSocketMessage CreatePlayersResponse(string requestId, List<TakaroPlayer> playersData)
         {
-            return new WebSocketMessage("response", playersData, requestId);
+            return new WebSocketMessage("response", playersData.ToArray(), requestId);
         }
         
         public static WebSocketMessage CreatePlayerLocationResponse(string requestId, double x, double y, double z)
