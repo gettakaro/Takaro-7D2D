@@ -279,6 +279,9 @@ namespace Takaro.WebSocket
                         }
                         HandleGetPlayerInventory(requestId, inventoryArgs.GameId);
                         break;
+                    case "listItems":
+                        HandleListItems(requestId);
+                        break;
                     default:
                         Log.Warning($"[Takaro] Unknown message type: {action}");
                         break;
@@ -514,15 +517,9 @@ namespace Takaro.WebSocket
                 }
 
                 ItemClass itemClass = itemValue.ItemClass;
-                TakaroItem takaroItem = new TakaroItem
-                {
-                    Name = itemClass.GetItemName(),
-                    Code = itemClass.GetItemName(),
-                    Description = "TODO: fetch description",
-                    Amount = item.count,
-                    Quality = itemValue.Quality.ToString(),
-                };
-
+                TakaroItem takaroItem = Shared.TransformItemToTakaroItem(itemClass);
+                takaroItem.Amount = item.count;
+                takaroItem.Quality = itemValue.Quality.ToString();
                 itemsList.Add(takaroItem);
             }
         }
@@ -540,39 +537,60 @@ namespace Takaro.WebSocket
                 }
 
                 ItemClass itemClass = itemValue.ItemClass;
-                TakaroItem takaroItem = new TakaroItem
-                {
-                    Name = itemClass.GetItemName(),
-                    Code = itemClass.GetItemName(),
-                    Description = "TODO: fetch description",
-                    Amount = 1,
-                    Quality = itemValue.Quality.ToString(),
-                };
-
+                TakaroItem takaroItem = Shared.TransformItemToTakaroItem(itemClass);
+                takaroItem.Amount = 1;
+                takaroItem.Quality = itemValue.Quality.ToString();
                 itemsList.Add(takaroItem);
             }
+        }
+
+        private void HandleListItems(string requestId)
+        {
+            List<TakaroItem> allItems = new List<TakaroItem>();
+            for (int i = 0; i < ItemClass.list.Length; i++) {
+				ItemClass item = ItemClass.list [i];
+                allItems.Add(Shared.TransformItemToTakaroItem(item));
+
+			}
+            WebSocketMessage message = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.Response,
+                allItems.ToArray(),
+                requestId
+            );
+            SendMessage(message);
         }
 
         #endregion
 
         #region Event Handlers
+        public void SendGameEvent(string type, object data)
+        {
+            if (data == null)
+                return;
+
+            WebSocketMessage message = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.GameEvent,
+                new Dictionary<string, object> { 
+                    { "type", type },
+                    { "data", data }
+                 }
+            );
+
+            SendMessage(message);
+        }
 
         // Public methods to send game events
         public void SendPlayerConnected(ClientInfo cInfo)
         {
-            if (cInfo == null)
-                return;
-            WebSocketMessage message = WebSocketMessage.Create(
-                WebSocketMessage.MessageTypes.PlayerConnected,
+            if (cInfo == null) return;
+
+            SendGameEvent(
+                "player-connected",
                 new Dictionary<string, object>
                 {
-                    { "name", cInfo.playerName },
-                    { "entityId", cInfo.entityId.ToString() },
-                    { "platformId", cInfo.PlatformId.ToString() }
+                    { "player", Shared.TransformClientInfoToTakaroPlayer(cInfo) },
                 }
             );
-
-            SendMessage(message);
         }
 
         public void SendPlayerDisconnected(ClientInfo cInfo)
@@ -580,34 +598,49 @@ namespace Takaro.WebSocket
             if (cInfo == null)
                 return;
 
-            WebSocketMessage message = WebSocketMessage.Create(
-                WebSocketMessage.MessageTypes.PlayerDisconnected,
+        SendGameEvent(
+                "player-disconnected",
                 new Dictionary<string, object>
                 {
-                    { "name", cInfo.playerName },
-                    { "entityId", cInfo.entityId.ToString() },
-                    { "platformId", cInfo.PlatformId.ToString() }
+                    { "player", Shared.TransformClientInfoToTakaroPlayer(cInfo) },
                 }
             );
-            SendMessage(message);
         }
 
-        public void SendChatMessage(ClientInfo cInfo, string message)
+        public void SendChatMessage(ClientInfo cInfo, EChatType type, int _senderId, string msg, string mainName, List<int> recipientEntityIds)
         {
-            if (cInfo == null)
-                return;
+            if (cInfo == null) return;
 
-            WebSocketMessage msg = WebSocketMessage.Create(
-                WebSocketMessage.MessageTypes.ChatMessage,
+            string channel = "unknown";
+
+            switch (type)
+            {
+                case EChatType.Global:
+                    channel = "global";
+                    break;
+                case EChatType.Whisper:
+                    channel = "whisper";
+                    break;
+                case EChatType.Friends:
+                    channel = "friends";
+                    break;
+                case EChatType.Party:
+                    channel = "team";
+                    break;                    
+                default:
+                    channel = "unknown";
+                    break;
+            }
+
+            SendGameEvent(
+                "chat-message",
                 new Dictionary<string, object>
                 {
-                    { "name", cInfo.playerName },
-                    { "entityId", cInfo.entityId.ToString() },
-                    { "platformId", cInfo.PlatformId.ToString() },
-                    { "message", message }
+                    { "player", Shared.TransformClientInfoToTakaroPlayer(cInfo) },
+                    { "msg", msg },
+                    { "channel", channel }
                 }
             );
-            SendMessage(msg);
         }
 
         public void SendEntityKilled(ClientInfo killerInfo, string entityName, string entityType)
@@ -615,8 +648,8 @@ namespace Takaro.WebSocket
             if (killerInfo == null)
                 return;
 
-            WebSocketMessage msg = WebSocketMessage.Create(
-                WebSocketMessage.MessageTypes.EntityKilled,
+            SendGameEvent(
+                "entity-killed",
                 new Dictionary<string, object>
                 {
                     { "name", killerInfo.playerName },
@@ -626,7 +659,6 @@ namespace Takaro.WebSocket
                     { "entityType", entityType }
                 }
             );
-            SendMessage(msg);
         }
 
         #endregion

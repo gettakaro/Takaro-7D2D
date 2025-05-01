@@ -104,7 +104,7 @@ namespace Takaro.WebSocket
         public static WebSocketMessage CreateErrorResponse(string requestId, string errorMessage)
         {
             return Create(
-                "error",
+                WebSocketMessage.MessageTypes.Error,
                 new Dictionary<string, object>
                 {
                     { "requestId", requestId },
@@ -121,12 +121,7 @@ namespace Takaro.WebSocket
             public const string Identify = "identify";
             public const string Response = "response";
             public const string Error = "error";
-
-            // Game event types
-            public const string PlayerConnected = "player-connected";
-            public const string PlayerDisconnected = "player-disconnected";
-            public const string ChatMessage = "chat-message";
-            public const string EntityKilled = "entity-killed";
+            public const string GameEvent = "gameEvent";
         }
 
         // A few common message factory methods for convenience

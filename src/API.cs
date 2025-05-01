@@ -26,7 +26,6 @@ namespace Takaro
             ModEvents.PlayerLogin.RegisterHandler(PlayerLogin);
             ModEvents.EntityKilled.RegisterHandler(EntityKilled);
             ModEvents.GameMessage.RegisterHandler(GameMessage);
-            ModEvents.CalcChunkColorsDone.RegisterHandler(CalcChunkColorsDone);
 
             Log.Out("[Takaro] Mod initialized successfully");
         }
@@ -140,17 +139,12 @@ namespace Takaro
             List<int> recipientEntityIds
         )
         {
-            if (cInfo != null && type == EChatType.Global)
+            if (cInfo != null)
             {
                 Log.Out($"[Takaro] Chat message: {cInfo.playerName}: {msg}");
-                _webSocketClient?.SendChatMessage(cInfo, msg);
+                _webSocketClient?.SendChatMessage(cInfo, type, senderId, msg, mainName, recipientEntityIds);
             }
             return true;
-        }
-
-        private void CalcChunkColorsDone(Chunk chunk)
-        {
-            // Can be used for world events if needed
         }
     }
 }
