@@ -16,8 +16,7 @@ namespace Takaro.Config
         public int ReconnectIntervalSeconds { get; private set; } = 30;
 
         private const string DEFAULT_IDENTITY_TOKEN = "your-identity-token";
-        private string ConfigFilePath =>
-            Path.Combine(GameIO.GetGamePath(), "Mods", "Takaro", "Config.xml");
+        private string ConfigFilePath = "";
 
         private ConfigManager()
         {
@@ -40,6 +39,11 @@ namespace Takaro.Config
                 }
                 return _instance;
             }
+        }
+
+        public void SetPath(string path)
+        {
+            ConfigFilePath = Path.Combine(GameIO.GetGamePath(), path, "Config.xml");
         }
 
         public void LoadConfig()

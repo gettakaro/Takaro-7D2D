@@ -14,6 +14,7 @@ namespace Takaro
             Log.Out("[Takaro] Initializing mod");
 
             // Initialize config
+            ConfigManager.Instance.SetPath(mod.Path);
             ConfigManager.Instance.LoadConfig();
 
             // Register event handlers
