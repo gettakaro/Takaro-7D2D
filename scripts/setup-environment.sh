@@ -34,7 +34,7 @@ echo "Extracting game DLLs..."
 docker compose run --rm builder bash -c "cp -f /app/_data/game-files/7DaysToDieServer_Data/Managed/*.dll /app/_data/7dtd-binaries/ && \
                                          cp -f /app/_data/game-files/Mods/0_TFP_Harmony/*.dll /app/_data/7dtd-binaries/"
 
-# Build dependencies (websocket-sharp, download Newtonsoft.Json)
+# Build dependencies (websocket-sharp)
 echo "Preparing dependencies..."
 docker compose run --rm deps
 

@@ -53,6 +53,4 @@ services:
         cd /tmp/websocket-sharp &&
         xbuild /p:Configuration=Release websocket-sharp.sln &&
         cp /tmp/websocket-sharp/Example/bin/Release/websocket-sharp.dll /binaries/ &&
-        cp /tmp/websocket-sharp/Example/bin/Release/websocket-sharp.dll /app/lib/ &&
-        nuget install Newtonsoft.Json -Version 13.0.1 -OutputDirectory /tmp &&
-        cp -r /tmp/Newtonsoft.Json.13.0.1 /binaries/"
+        cp /tmp/websocket-sharp/Example/bin/Release/websocket-sharp.dll /app/lib/"
