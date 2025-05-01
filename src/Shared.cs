@@ -18,6 +18,8 @@ namespace Takaro
 
         [JsonProperty("steamId")]
         public string SteamId { get; set; }
+        [JsonProperty("epicOnlineServicesId")]
+        public string EpicOnlineServicesId { get; set; }
 
         [JsonProperty("xboxLiveId")]
         public string XboxLiveId { get; set; }
@@ -63,7 +65,8 @@ namespace Takaro
                 GameId = clientInfo.CrossplatformId.CombinedString.Replace("EOS_", ""),
                 Name = clientInfo.playerName,
                 Ip = clientInfo.ip,
-                Ping = clientInfo.ping
+                Ping = clientInfo.ping,
+                EpicOnlineServicesId = clientInfo.CrossplatformId.CombinedString.Replace("EOS_", "")
             };
 
             if (clientInfo.PlatformId != null && clientInfo.PlatformId.CombinedString != null)
