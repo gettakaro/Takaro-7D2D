@@ -262,6 +262,15 @@ namespace Takaro.WebSocket
                     case "getPlayers":
                         HandleGetPlayers(requestId);
                         break;
+                    case "getPlayer":
+                        var playerArgs = WebSocketArgs<TakaroPlayerReferenceArgs>.Parse(args);
+                        if (playerArgs == null || string.IsNullOrEmpty(playerArgs.GameId))
+                        {
+                            SendErrorResponse(requestId, "Invalid or missing gameId parameter");
+                            return;
+                        }
+                        HandleGetPlayer(requestId, playerArgs.GameId);
+                        break;
                     case "getPlayerLocation":
                         var locationArgs = WebSocketArgs<TakaroPlayerReferenceArgs>.Parse(args);
                         if (locationArgs == null || string.IsNullOrEmpty(locationArgs.GameId))
@@ -453,6 +462,26 @@ namespace Takaro.WebSocket
                 players.ToArray(),
                 requestId
             );
+            SendMessage(message);
+        }
+
+        private void HandleGetPlayer(string requestId, string gameId)
+        {
+            ClientInfo cInfo = Shared.GetClientInfoFromGameId(gameId);
+            if (cInfo == null)
+            {
+                SendErrorResponse(requestId, "Player not found");
+                return;
+            }
+
+            TakaroPlayer takaroPlayer = Shared.TransformClientInfoToTakaroPlayer(cInfo);
+            if (takaroPlayer == null)
+            {
+                SendErrorResponse(requestId, "Player not found");
+                return;
+            }
+
+            WebSocketMessage message = WebSocketMessage.CreateResponse(requestId, takaroPlayer);
             SendMessage(message);
         }
 
