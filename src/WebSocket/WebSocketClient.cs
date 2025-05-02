@@ -194,6 +194,7 @@ namespace Takaro.WebSocket
             }
         }
 
+        #region HandleMessage
         private void HandleMessage(string message)
         {
             try
@@ -282,6 +283,9 @@ namespace Takaro.WebSocket
                     case "listItems":
                         HandleListItems(requestId);
                         break;
+                    case "listBans":
+                        HandleListBans(requestId);
+                        break;
                     default:
                         Log.Warning($"[Takaro] Unknown message type: {action}");
                         break;
@@ -293,7 +297,9 @@ namespace Takaro.WebSocket
                 Log.Exception(ex);
             }
         }
+        #endregion
 
+        #region Helpers
         public void SendMessage(WebSocketMessage message)
         {
             try
@@ -414,6 +420,7 @@ namespace Takaro.WebSocket
             }
         }
 
+        #endregion
         #region Action Handlers
 
         private void HandleTestReachability(string requestId)
@@ -555,6 +562,45 @@ namespace Takaro.WebSocket
             WebSocketMessage message = WebSocketMessage.Create(
                 WebSocketMessage.MessageTypes.Response,
                 allItems.ToArray(),
+                requestId
+            );
+            SendMessage(message);
+        }
+
+        private void HandleListBans(string requestId)
+        {
+            // TODO: This currently only works for EOS IDs
+            // It should be smarter and fetch data from persistent player data somehow
+            // But I dunno how to do that, and I just want this to reply with _some_ data for now :) 
+            List<TakaroBan> bans = new List<TakaroBan>();
+            PersistentPlayerList playerList = GameManager.Instance.GetPersistentPlayerList();
+            foreach (var ban in GameManager.Instance.adminTools.Blacklist.GetBanned())
+            {
+                if(!ban.UserIdentifier.CombinedString.StartsWith("EOS_")) continue;
+                PersistentPlayerData playerData = playerList.GetPlayerData(ban.UserIdentifier);
+                if (playerData == null) continue;
+
+
+                TakaroPlayer takaroPlayer = new TakaroPlayer
+                {
+                    GameId = ban.UserIdentifier.CombinedString.Replace("EOS_", ""),
+                    Name = playerData.PlayerName.playerName.Text,
+                    EpicOnlineServicesId = ban.UserIdentifier.CombinedString.Replace("EOS_", ""),
+                };
+
+
+                TakaroBan takaroBan = new TakaroBan
+                {
+                    Player = takaroPlayer,
+                    Reason = ban.BanReason,
+                    ExpiresAt = ban.BannedUntil.ToString("o")
+                };
+                bans.Add(takaroBan);
+            }
+
+            WebSocketMessage message = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.Response,
+                bans.ToArray(),
                 requestId
             );
             SendMessage(message);

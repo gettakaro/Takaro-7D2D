@@ -43,6 +43,16 @@ namespace Takaro
         public string Quality { get; set; }
     }
 
+    public class TakaroBan
+    {
+        [JsonProperty("player")]
+        public TakaroPlayer Player { get; set; }
+        [JsonProperty("reason")]
+        public string Reason { get; set; }
+        [JsonProperty("expiresAt")]
+        public string ExpiresAt { get; set; }
+    }
+
     public static class Shared
     {
         public static ClientInfo GetClientInfoFromGameId(string gameId)
