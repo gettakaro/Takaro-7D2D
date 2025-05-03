@@ -68,6 +68,17 @@ namespace Takaro.WebSocket
         public string Command { get; set; }
     }
 
+    public class TakaroSendMessageArgs 
+    {
+        public string Message { get; set; }
+        public TakaroSendMessageRecipientArgs Recipient { get; set; }
+    }
+
+    public class TakaroSendMessageRecipientArgs
+    {
+        public string GameId { get; set; }
+    }
+
     public class WebSocketClient
     {
         private static WebSocketClient _instance;
@@ -319,6 +330,10 @@ namespace Takaro.WebSocket
                     case "executeConsoleCommand":
                         var executeCommandArgs = WebSocketArgs<TakaroExecuteCommandArgs>.Parse(args);
                         HandleExecuteCommand(requestId, executeCommandArgs);
+                        break;
+                    case "sendMessage":
+                        var sendMessageArgs = WebSocketArgs<TakaroSendMessageArgs>.Parse(args);
+                        HandleSendMessage(requestId, sendMessageArgs);
                         break;
                     default:
                         Log.Warning($"[Takaro] Unknown message type: {action}");
@@ -770,6 +785,37 @@ namespace Takaro.WebSocket
             world.SpawnEntityInWorld(entityItem);
             cInfo.SendPackage(NetPackageManager.GetPackage<NetPackageEntityCollect>().Setup(entityItem.entityId, cInfo.entityId));
             world.RemoveEntity(entityItem.entityId, EnumRemoveEntityReason.Despawned);
+            WebSocketMessage message = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.Response,
+                new Dictionary<string, object> {},
+                requestId
+            );
+            SendMessage(message);
+        }
+
+        private void HandleSendMessage(string requestId, TakaroSendMessageArgs args)
+        {
+            if (args == null || string.IsNullOrEmpty(args.Message))
+            {
+                SendErrorResponse(requestId, "Invalid or missing parameters");
+                return;
+            }
+
+            // If a GameId is provided, send the message to that player as a whisper
+            if(args.Recipient != null && args.Recipient.GameId != null) {
+                ClientInfo cInfo = Shared.GetClientInfoFromGameId(args.Recipient.GameId);
+                if (cInfo == null)
+                {
+                    SendErrorResponse(requestId, "Player not found");
+                    return;
+                }
+
+                cInfo.SendPackage (NetPackageManager.GetPackage<NetPackageChat> ().Setup (EChatType.Whisper, -1,args.Message, null, EMessageSender.Server));
+            // Otherwise, send a global message
+            } else {
+                GameManager.Instance.ChatMessageServer(null, EChatType.Global, -1, args.Message, null, EMessageSender.Server);
+            }
+
             WebSocketMessage message = WebSocketMessage.Create(
                 WebSocketMessage.MessageTypes.Response,
                 new Dictionary<string, object> {},
