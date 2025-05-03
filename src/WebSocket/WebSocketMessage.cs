@@ -103,13 +103,13 @@ namespace Takaro.WebSocket
 
         public static WebSocketMessage CreateErrorResponse(string requestId, string errorMessage)
         {
-            return Create(
-                WebSocketMessage.MessageTypes.Error,
+            return new WebSocketMessage(
+                MessageTypes.Error,
                 new Dictionary<string, object>
                 {
-                    { "requestId", requestId },
                     { "error", errorMessage }
-                }
+                },
+                requestId
             );
         }
 

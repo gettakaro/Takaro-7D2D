@@ -96,9 +96,6 @@ namespace Takaro
 
         public static TakaroItem TransformItemToTakaroItem(ItemClass itemClass)
         {
-            if (itemClass == null)
-                return null;
-
                 string Description = Localization.Get($"{itemClass.GetItemName()}Desc", true);
 
                 TakaroItem takaroItem = new TakaroItem

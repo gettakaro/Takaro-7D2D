@@ -7,6 +7,7 @@ using System.Threading;
 using Newtonsoft.Json;
 using Takaro.Config;
 using WebSocketSharp;
+using UnityEngine;
 
 namespace Takaro.WebSocket
 {
@@ -51,6 +52,14 @@ namespace Takaro.WebSocket
     public class TakaroPlayerReferenceArgs
     {
         public string GameId { get; set; }
+    }
+
+    public class TakaroGiveItemArgs
+    {
+        public string GameId { get; set; }
+        public string Item { get; set; }
+        public int Amount { get; set; }
+        public string Quality { get; set; }
     }
 
     public class WebSocketClient
@@ -253,7 +262,9 @@ namespace Takaro.WebSocket
                     args = payloadDict["args"];
                 }
 
-                // Handle different message types
+                try
+                {
+                                    // Handle different message types
                 switch (action)
                 {
                     case "testReachability":
@@ -295,10 +306,22 @@ namespace Takaro.WebSocket
                     case "listBans":
                         HandleListBans(requestId);
                         break;
+                    case "giveItem":
+                        var giveItemArgs = WebSocketArgs<TakaroGiveItemArgs>.Parse(args);
+                        HandleGiveItem(requestId, giveItemArgs);
+                        break;
                     default:
                         Log.Warning($"[Takaro] Unknown message type: {action}");
                         break;
                 }
+                }
+                catch (System.Exception)
+                {
+                    SendErrorResponse(requestId, "Error processing request");
+                    throw;
+                }
+
+
             }
             catch (Exception ex)
             {
@@ -583,8 +606,12 @@ namespace Takaro.WebSocket
         private void HandleListItems(string requestId)
         {
             List<TakaroItem> allItems = new List<TakaroItem>();
-            for (int i = 0; i < ItemClass.list.Length; i++) {
-				ItemClass item = ItemClass.list [i];
+            for (int i = 0; i < ItemClass.itemNames.Count; i++) {
+				string itemName = ItemClass.itemNames [i];
+                ItemClass item = ItemClass.nameToItem[itemName];
+                if (item == null) {
+                    continue;
+                }
                 allItems.Add(Shared.TransformItemToTakaroItem(item));
 
 			}
@@ -630,6 +657,111 @@ namespace Takaro.WebSocket
             WebSocketMessage message = WebSocketMessage.Create(
                 WebSocketMessage.MessageTypes.Response,
                 bans.ToArray(),
+                requestId
+            );
+            SendMessage(message);
+        }
+
+        private void HandleGiveItem(string requestId, TakaroGiveItemArgs args)
+        {
+            if (args == null || args.GameId == null || string.IsNullOrEmpty(args.Item))
+            {
+                SendErrorResponse(requestId, "Invalid or missing parameters");
+                return;
+            }
+            
+            ClientInfo cInfo = Shared.GetClientInfoFromGameId(args.GameId);
+            if (cInfo == null)
+            {
+                SendErrorResponse(requestId, "Player not found");
+                return;
+            }
+            
+            ItemValue itemValue = ItemClass.GetItem(args.Item);
+            if (itemValue == null || itemValue.type == ItemValue.None.type)
+            {
+                SendErrorResponse(requestId, "Item not found");
+                return;
+            }
+            
+            if(!GameManager.Instance.World.Players.dict.TryGetValue(cInfo.entityId, out EntityPlayer player))
+            {
+                SendErrorResponse(requestId, "Player entity not found");
+                return;
+            }
+            
+            if(!player.IsSpawned())
+            {
+                SendErrorResponse(requestId, "Player is not spawned");
+                return;
+            }
+            
+            if(player.IsDead())
+            {
+                SendErrorResponse(requestId, "Player is dead");
+                return;
+            }
+            
+            if (args.Amount <= 0)
+            {
+                SendErrorResponse(requestId, "Invalid item amount");
+                return;
+            }
+
+            // Parse quality parameter or use default max quality
+            ushort quality = Constants.cItemMaxQuality;
+            if (!string.IsNullOrEmpty(args.Quality))
+            {
+                if (ushort.TryParse(args.Quality, out ushort parsedQuality) && 
+                    parsedQuality >= 0 && 
+                    parsedQuality <= Constants.cItemMaxQuality)
+                {
+                    quality = parsedQuality;
+                }
+                else
+                {
+                    SendErrorResponse(requestId, "Invalid quality value");
+                    return;
+                }
+            }
+            
+            // Create a new ItemValue with appropriate quality
+            ItemValue iv = new ItemValue(itemValue.type, true);
+            
+            // Handle quality for items with sub-items or that have quality
+            if (ItemClass.list[iv.type].HasSubItems)
+            {
+                for (int i = 0; i < iv.Modifications.Length; i++)
+                {
+                    ItemValue tmp = iv.Modifications[i];
+                    tmp.Quality = quality;
+                    iv.Modifications[i] = tmp;
+                }
+            }
+            else if (ItemClass.list[iv.type].HasQuality)
+            {
+                iv.Quality = quality;
+            }
+            
+            // Create the item stack with the specified amount
+            ItemStack itemStack = new ItemStack(iv, args.Amount);
+            World world = GameManager.Instance.World;
+            EntityItem entityItem = (EntityItem)EntityFactory.CreateEntity(new EntityCreationData
+            {
+                entityClass = EntityClass.FromString("item"),
+                id = EntityFactory.nextEntityID++,
+                itemStack = itemStack,
+                pos = world.Players.dict[cInfo.entityId].position,
+                rot = new Vector3(20f, 0f, 20f),
+                lifetime = 60f,
+                belongsPlayerId = cInfo.entityId
+            });
+            world.SpawnEntityInWorld(entityItem);
+            cInfo.SendPackage(NetPackageManager.GetPackage<NetPackageEntityCollect>().Setup(entityItem.entityId, cInfo.entityId));
+            world.RemoveEntity(entityItem.entityId, EnumRemoveEntityReason.Despawned);
+            WebSocketMessage message = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.Response,
+                new Dictionary<string, object> {},
                 requestId
             );
             SendMessage(message);
