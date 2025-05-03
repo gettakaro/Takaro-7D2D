@@ -8,6 +8,7 @@ using Newtonsoft.Json;
 using Takaro.Config;
 using WebSocketSharp;
 using UnityEngine;
+using System.Threading.Tasks;
 
 namespace Takaro.WebSocket
 {
@@ -60,6 +61,11 @@ namespace Takaro.WebSocket
         public string Item { get; set; }
         public int Amount { get; set; }
         public string Quality { get; set; }
+    }
+
+    public class TakaroExecuteCommandArgs 
+    {
+        public string Command { get; set; }
     }
 
     public class WebSocketClient
@@ -310,8 +316,13 @@ namespace Takaro.WebSocket
                         var giveItemArgs = WebSocketArgs<TakaroGiveItemArgs>.Parse(args);
                         HandleGiveItem(requestId, giveItemArgs);
                         break;
+                    case "executeConsoleCommand":
+                        var executeCommandArgs = WebSocketArgs<TakaroExecuteCommandArgs>.Parse(args);
+                        HandleExecuteCommand(requestId, executeCommandArgs);
+                        break;
                     default:
                         Log.Warning($"[Takaro] Unknown message type: {action}");
+                        SendErrorResponse(requestId, $"Unknown message type: {action}");
                         break;
                 }
                 }
@@ -762,6 +773,29 @@ namespace Takaro.WebSocket
             WebSocketMessage message = WebSocketMessage.Create(
                 WebSocketMessage.MessageTypes.Response,
                 new Dictionary<string, object> {},
+                requestId
+            );
+            SendMessage(message);
+        }
+
+        private async Task HandleExecuteCommand(string requestId, TakaroExecuteCommandArgs args)
+        {
+            if (args == null || string.IsNullOrEmpty(args.Command))
+            {
+                SendErrorResponse(requestId, "Invalid or missing command");
+                return;
+            }
+            var tcs = new TaskCompletionSource<string>();
+            var cr = new CommandResult(args.Command, tcs);
+            SdtdConsole.Instance.ExecuteAsync (args.Command, cr);
+            string result = await tcs.Task;
+
+            WebSocketMessage message = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.Response,
+                new Dictionary<string, object> { 
+                    { "rawResult", result },
+                    {"success", true}
+                     },
                 requestId
             );
             SendMessage(message);
