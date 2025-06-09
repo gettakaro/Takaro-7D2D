@@ -18,6 +18,8 @@ namespace Takaro
 
         [JsonProperty("steamId")]
         public string SteamId { get; set; }
+        [JsonProperty("epicOnlineServicesId")]
+        public string EpicOnlineServicesId { get; set; }
 
         [JsonProperty("xboxLiveId")]
         public string XboxLiveId { get; set; }
@@ -39,6 +41,16 @@ namespace Takaro
 
         [JsonProperty("quality")]
         public string Quality { get; set; }
+    }
+
+    public class TakaroBan
+    {
+        [JsonProperty("player")]
+        public TakaroPlayer Player { get; set; }
+        [JsonProperty("reason")]
+        public string Reason { get; set; }
+        [JsonProperty("expiresAt")]
+        public string ExpiresAt { get; set; }
     }
 
     public static class Shared
@@ -63,7 +75,8 @@ namespace Takaro
                 GameId = clientInfo.CrossplatformId.CombinedString.Replace("EOS_", ""),
                 Name = clientInfo.playerName,
                 Ip = clientInfo.ip,
-                Ping = clientInfo.ping
+                Ping = clientInfo.ping,
+                EpicOnlineServicesId = clientInfo.CrossplatformId.CombinedString.Replace("EOS_", "")
             };
 
             if (clientInfo.PlatformId != null && clientInfo.PlatformId.CombinedString != null)
@@ -79,6 +92,20 @@ namespace Takaro
             }
 
             return player;
+        }
+
+        public static TakaroItem TransformItemToTakaroItem(ItemClass itemClass)
+        {
+                string Description = Localization.Get($"{itemClass.GetItemName()}Desc", true);
+
+                TakaroItem takaroItem = new TakaroItem
+                {
+                    Name = itemClass.GetLocalizedItemName(),
+                    Code = itemClass.GetItemName(),
+                    Description = Description,
+                };
+
+            return takaroItem;
         }
     }
 }

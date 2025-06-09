@@ -33,7 +33,9 @@ jobs:
       - name: Create mod package
         run: |
           mkdir -p dist
-          cp -r _data/build/Mods ./dist
+          cp -r _data/build/Mods/Takaro.dll ./dist/
+          cp -r _data/build/Mods/ModInfo.xml ./dist/
+          cp -r _data/build/Mods/websocket-sharp.dll ./dist/
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4.6.2

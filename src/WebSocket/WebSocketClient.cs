@@ -7,6 +7,8 @@ using System.Threading;
 using Newtonsoft.Json;
 using Takaro.Config;
 using WebSocketSharp;
+using UnityEngine;
+using System.Threading.Tasks;
 
 namespace Takaro.WebSocket
 {
@@ -49,6 +51,30 @@ namespace Takaro.WebSocket
     }
 
     public class TakaroPlayerReferenceArgs
+    {
+        public string GameId { get; set; }
+    }
+
+    public class TakaroGiveItemArgs
+    {
+        public string GameId { get; set; }
+        public string Item { get; set; }
+        public int Amount { get; set; }
+        public string Quality { get; set; }
+    }
+
+    public class TakaroExecuteCommandArgs 
+    {
+        public string Command { get; set; }
+    }
+
+    public class TakaroSendMessageArgs 
+    {
+        public string Message { get; set; }
+        public TakaroSendMessageRecipientArgs Recipient { get; set; }
+    }
+
+    public class TakaroSendMessageRecipientArgs
     {
         public string GameId { get; set; }
     }
@@ -194,6 +220,7 @@ namespace Takaro.WebSocket
             }
         }
 
+        #region HandleMessage
         private void HandleMessage(string message)
         {
             try
@@ -252,7 +279,9 @@ namespace Takaro.WebSocket
                     args = payloadDict["args"];
                 }
 
-                // Handle different message types
+                try
+                {
+                                    // Handle different message types
                 switch (action)
                 {
                     case "testReachability":
@@ -260,6 +289,15 @@ namespace Takaro.WebSocket
                         break;
                     case "getPlayers":
                         HandleGetPlayers(requestId);
+                        break;
+                    case "getPlayer":
+                        var playerArgs = WebSocketArgs<TakaroPlayerReferenceArgs>.Parse(args);
+                        if (playerArgs == null || string.IsNullOrEmpty(playerArgs.GameId))
+                        {
+                            SendErrorResponse(requestId, "Invalid or missing gameId parameter");
+                            return;
+                        }
+                        HandleGetPlayer(requestId, playerArgs.GameId);
                         break;
                     case "getPlayerLocation":
                         var locationArgs = WebSocketArgs<TakaroPlayerReferenceArgs>.Parse(args);
@@ -279,10 +317,37 @@ namespace Takaro.WebSocket
                         }
                         HandleGetPlayerInventory(requestId, inventoryArgs.GameId);
                         break;
+                    case "listItems":
+                        HandleListItems(requestId);
+                        break;
+                    case "listBans":
+                        HandleListBans(requestId);
+                        break;
+                    case "giveItem":
+                        var giveItemArgs = WebSocketArgs<TakaroGiveItemArgs>.Parse(args);
+                        HandleGiveItem(requestId, giveItemArgs);
+                        break;
+                    case "executeConsoleCommand":
+                        var executeCommandArgs = WebSocketArgs<TakaroExecuteCommandArgs>.Parse(args);
+                        HandleExecuteCommand(requestId, executeCommandArgs);
+                        break;
+                    case "sendMessage":
+                        var sendMessageArgs = WebSocketArgs<TakaroSendMessageArgs>.Parse(args);
+                        HandleSendMessage(requestId, sendMessageArgs);
+                        break;
                     default:
                         Log.Warning($"[Takaro] Unknown message type: {action}");
+                        SendErrorResponse(requestId, $"Unknown message type: {action}");
                         break;
                 }
+                }
+                catch (System.Exception)
+                {
+                    SendErrorResponse(requestId, "Error processing request");
+                    throw;
+                }
+
+
             }
             catch (Exception ex)
             {
@@ -290,7 +355,9 @@ namespace Takaro.WebSocket
                 Log.Exception(ex);
             }
         }
+        #endregion
 
+        #region Helpers
         public void SendMessage(WebSocketMessage message)
         {
             try
@@ -411,6 +478,7 @@ namespace Takaro.WebSocket
             }
         }
 
+        #endregion
         #region Action Handlers
 
         private void HandleTestReachability(string requestId)
@@ -443,6 +511,26 @@ namespace Takaro.WebSocket
                 players.ToArray(),
                 requestId
             );
+            SendMessage(message);
+        }
+
+        private void HandleGetPlayer(string requestId, string gameId)
+        {
+            ClientInfo cInfo = Shared.GetClientInfoFromGameId(gameId);
+            if (cInfo == null)
+            {
+                SendErrorResponse(requestId, "Player not found");
+                return;
+            }
+
+            TakaroPlayer takaroPlayer = Shared.TransformClientInfoToTakaroPlayer(cInfo);
+            if (takaroPlayer == null)
+            {
+                SendErrorResponse(requestId, "Player not found");
+                return;
+            }
+
+            WebSocketMessage message = WebSocketMessage.CreateResponse(requestId, takaroPlayer);
             SendMessage(message);
         }
 
@@ -514,15 +602,9 @@ namespace Takaro.WebSocket
                 }
 
                 ItemClass itemClass = itemValue.ItemClass;
-                TakaroItem takaroItem = new TakaroItem
-                {
-                    Name = itemClass.GetItemName(),
-                    Code = itemClass.GetItemName(),
-                    Description = "TODO: fetch description",
-                    Amount = item.count,
-                    Quality = itemValue.Quality.ToString(),
-                };
-
+                TakaroItem takaroItem = Shared.TransformItemToTakaroItem(itemClass);
+                takaroItem.Amount = item.count;
+                takaroItem.Quality = itemValue.Quality.ToString();
                 itemsList.Add(takaroItem);
             }
         }
@@ -540,39 +622,262 @@ namespace Takaro.WebSocket
                 }
 
                 ItemClass itemClass = itemValue.ItemClass;
-                TakaroItem takaroItem = new TakaroItem
-                {
-                    Name = itemClass.GetItemName(),
-                    Code = itemClass.GetItemName(),
-                    Description = "TODO: fetch description",
-                    Amount = 1,
-                    Quality = itemValue.Quality.ToString(),
-                };
-
+                TakaroItem takaroItem = Shared.TransformItemToTakaroItem(itemClass);
+                takaroItem.Amount = 1;
+                takaroItem.Quality = itemValue.Quality.ToString();
                 itemsList.Add(takaroItem);
             }
+        }
+
+        private void HandleListItems(string requestId)
+        {
+            List<TakaroItem> allItems = new List<TakaroItem>();
+            for (int i = 0; i < ItemClass.itemNames.Count; i++) {
+				string itemName = ItemClass.itemNames [i];
+                ItemClass item = ItemClass.nameToItem[itemName];
+                if (item == null) {
+                    continue;
+                }
+                allItems.Add(Shared.TransformItemToTakaroItem(item));
+
+			}
+            WebSocketMessage message = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.Response,
+                allItems.ToArray(),
+                requestId
+            );
+            SendMessage(message);
+        }
+
+        private void HandleListBans(string requestId)
+        {
+            // TODO: This currently only works for EOS IDs
+            // It should be smarter and fetch data from persistent player data somehow
+            // But I dunno how to do that, and I just want this to reply with _some_ data for now :) 
+            List<TakaroBan> bans = new List<TakaroBan>();
+            PersistentPlayerList playerList = GameManager.Instance.GetPersistentPlayerList();
+            foreach (var ban in GameManager.Instance.adminTools.Blacklist.GetBanned())
+            {
+                if(!ban.UserIdentifier.CombinedString.StartsWith("EOS_")) continue;
+                PersistentPlayerData playerData = playerList.GetPlayerData(ban.UserIdentifier);
+                if (playerData == null) continue;
+
+
+                TakaroPlayer takaroPlayer = new TakaroPlayer
+                {
+                    GameId = ban.UserIdentifier.CombinedString.Replace("EOS_", ""),
+                    Name = playerData.PlayerName.playerName.Text,
+                    EpicOnlineServicesId = ban.UserIdentifier.CombinedString.Replace("EOS_", ""),
+                };
+
+
+                TakaroBan takaroBan = new TakaroBan
+                {
+                    Player = takaroPlayer,
+                    Reason = ban.BanReason,
+                    ExpiresAt = ban.BannedUntil.ToString("o")
+                };
+                bans.Add(takaroBan);
+            }
+
+            WebSocketMessage message = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.Response,
+                bans.ToArray(),
+                requestId
+            );
+            SendMessage(message);
+        }
+
+        private void HandleGiveItem(string requestId, TakaroGiveItemArgs args)
+        {
+            if (args == null || args.GameId == null || string.IsNullOrEmpty(args.Item))
+            {
+                SendErrorResponse(requestId, "Invalid or missing parameters");
+                return;
+            }
+            
+            ClientInfo cInfo = Shared.GetClientInfoFromGameId(args.GameId);
+            if (cInfo == null)
+            {
+                SendErrorResponse(requestId, "Player not found");
+                return;
+            }
+            
+            ItemValue itemValue = ItemClass.GetItem(args.Item);
+            if (itemValue == null || itemValue.type == ItemValue.None.type)
+            {
+                SendErrorResponse(requestId, "Item not found");
+                return;
+            }
+            
+            if(!GameManager.Instance.World.Players.dict.TryGetValue(cInfo.entityId, out EntityPlayer player))
+            {
+                SendErrorResponse(requestId, "Player entity not found");
+                return;
+            }
+            
+            if(!player.IsSpawned())
+            {
+                SendErrorResponse(requestId, "Player is not spawned");
+                return;
+            }
+            
+            if(player.IsDead())
+            {
+                SendErrorResponse(requestId, "Player is dead");
+                return;
+            }
+            
+            if (args.Amount <= 0)
+            {
+                SendErrorResponse(requestId, "Invalid item amount");
+                return;
+            }
+
+            // Parse quality parameter or use default max quality
+            ushort quality = Constants.cItemMaxQuality;
+            if (!string.IsNullOrEmpty(args.Quality))
+            {
+                if (ushort.TryParse(args.Quality, out ushort parsedQuality) && 
+                    parsedQuality >= 0 && 
+                    parsedQuality <= Constants.cItemMaxQuality)
+                {
+                    quality = parsedQuality;
+                }
+                else
+                {
+                    SendErrorResponse(requestId, "Invalid quality value");
+                    return;
+                }
+            }
+            
+            // Create a new ItemValue with appropriate quality
+            ItemValue iv = new ItemValue(itemValue.type, true);
+            
+            // Handle quality for items with sub-items or that have quality
+            if (ItemClass.list[iv.type].HasSubItems)
+            {
+                for (int i = 0; i < iv.Modifications.Length; i++)
+                {
+                    ItemValue tmp = iv.Modifications[i];
+                    tmp.Quality = quality;
+                    iv.Modifications[i] = tmp;
+                }
+            }
+            else if (ItemClass.list[iv.type].HasQuality)
+            {
+                iv.Quality = quality;
+            }
+            
+            // Create the item stack with the specified amount
+            ItemStack itemStack = new ItemStack(iv, args.Amount);
+            World world = GameManager.Instance.World;
+            EntityItem entityItem = (EntityItem)EntityFactory.CreateEntity(new EntityCreationData
+            {
+                entityClass = EntityClass.FromString("item"),
+                id = EntityFactory.nextEntityID++,
+                itemStack = itemStack,
+                pos = world.Players.dict[cInfo.entityId].position,
+                rot = new Vector3(20f, 0f, 20f),
+                lifetime = 60f,
+                belongsPlayerId = cInfo.entityId
+            });
+            world.SpawnEntityInWorld(entityItem);
+            cInfo.SendPackage(NetPackageManager.GetPackage<NetPackageEntityCollect>().Setup(entityItem.entityId, cInfo.entityId));
+            world.RemoveEntity(entityItem.entityId, EnumRemoveEntityReason.Despawned);
+            WebSocketMessage message = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.Response,
+                new Dictionary<string, object> {},
+                requestId
+            );
+            SendMessage(message);
+        }
+
+        private void HandleSendMessage(string requestId, TakaroSendMessageArgs args)
+        {
+            if (args == null || string.IsNullOrEmpty(args.Message))
+            {
+                SendErrorResponse(requestId, "Invalid or missing parameters");
+                return;
+            }
+
+            // If a GameId is provided, send the message to that player as a whisper
+            if(args.Recipient != null && args.Recipient.GameId != null) {
+                ClientInfo cInfo = Shared.GetClientInfoFromGameId(args.Recipient.GameId);
+                if (cInfo == null)
+                {
+                    SendErrorResponse(requestId, "Player not found");
+                    return;
+                }
+
+                cInfo.SendPackage (NetPackageManager.GetPackage<NetPackageChat> ().Setup (EChatType.Whisper, -1,args.Message, null, EMessageSender.Server));
+            // Otherwise, send a global message
+            } else {
+                GameManager.Instance.ChatMessageServer(null, EChatType.Global, -1, args.Message, null, EMessageSender.Server);
+            }
+
+            WebSocketMessage message = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.Response,
+                new Dictionary<string, object> {},
+                requestId
+            );
+            SendMessage(message);
+        }
+
+        private async Task HandleExecuteCommand(string requestId, TakaroExecuteCommandArgs args)
+        {
+            if (args == null || string.IsNullOrEmpty(args.Command))
+            {
+                SendErrorResponse(requestId, "Invalid or missing command");
+                return;
+            }
+            var tcs = new TaskCompletionSource<string>();
+            var cr = new CommandResult(args.Command, tcs);
+            SdtdConsole.Instance.ExecuteAsync (args.Command, cr);
+            string result = await tcs.Task;
+
+            WebSocketMessage message = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.Response,
+                new Dictionary<string, object> { 
+                    { "rawResult", result },
+                    {"success", true}
+                     },
+                requestId
+            );
+            SendMessage(message);
         }
 
         #endregion
 
         #region Event Handlers
+        public void SendGameEvent(string type, object data)
+        {
+            if (data == null)
+                return;
+
+            WebSocketMessage message = WebSocketMessage.Create(
+                WebSocketMessage.MessageTypes.GameEvent,
+                new Dictionary<string, object> { 
+                    { "type", type },
+                    { "data", data }
+                 }
+            );
+
+            SendMessage(message);
+        }
 
         // Public methods to send game events
         public void SendPlayerConnected(ClientInfo cInfo)
         {
-            if (cInfo == null)
-                return;
-            WebSocketMessage message = WebSocketMessage.Create(
-                WebSocketMessage.MessageTypes.PlayerConnected,
+            if (cInfo == null) return;
+
+            SendGameEvent(
+                "player-connected",
                 new Dictionary<string, object>
                 {
-                    { "name", cInfo.playerName },
-                    { "entityId", cInfo.entityId.ToString() },
-                    { "platformId", cInfo.PlatformId.ToString() }
+                    { "player", Shared.TransformClientInfoToTakaroPlayer(cInfo) },
                 }
             );
-
-            SendMessage(message);
         }
 
         public void SendPlayerDisconnected(ClientInfo cInfo)
@@ -580,34 +885,49 @@ namespace Takaro.WebSocket
             if (cInfo == null)
                 return;
 
-            WebSocketMessage message = WebSocketMessage.Create(
-                WebSocketMessage.MessageTypes.PlayerDisconnected,
+        SendGameEvent(
+                "player-disconnected",
                 new Dictionary<string, object>
                 {
-                    { "name", cInfo.playerName },
-                    { "entityId", cInfo.entityId.ToString() },
-                    { "platformId", cInfo.PlatformId.ToString() }
+                    { "player", Shared.TransformClientInfoToTakaroPlayer(cInfo) },
                 }
             );
-            SendMessage(message);
         }
 
-        public void SendChatMessage(ClientInfo cInfo, string message)
+        public void SendChatMessage(ClientInfo cInfo, EChatType type, int _senderId, string msg, string mainName, List<int> recipientEntityIds)
         {
-            if (cInfo == null)
-                return;
+            if (cInfo == null) return;
 
-            WebSocketMessage msg = WebSocketMessage.Create(
-                WebSocketMessage.MessageTypes.ChatMessage,
+            string channel = "unknown";
+
+            switch (type)
+            {
+                case EChatType.Global:
+                    channel = "global";
+                    break;
+                case EChatType.Whisper:
+                    channel = "whisper";
+                    break;
+                case EChatType.Friends:
+                    channel = "friends";
+                    break;
+                case EChatType.Party:
+                    channel = "team";
+                    break;                    
+                default:
+                    channel = "unknown";
+                    break;
+            }
+
+            SendGameEvent(
+                "chat-message",
                 new Dictionary<string, object>
                 {
-                    { "name", cInfo.playerName },
-                    { "entityId", cInfo.entityId.ToString() },
-                    { "platformId", cInfo.PlatformId.ToString() },
-                    { "message", message }
+                    { "player", Shared.TransformClientInfoToTakaroPlayer(cInfo) },
+                    { "msg", msg },
+                    { "channel", channel }
                 }
             );
-            SendMessage(msg);
         }
 
         public void SendEntityKilled(ClientInfo killerInfo, string entityName, string entityType)
@@ -615,8 +935,8 @@ namespace Takaro.WebSocket
             if (killerInfo == null)
                 return;
 
-            WebSocketMessage msg = WebSocketMessage.Create(
-                WebSocketMessage.MessageTypes.EntityKilled,
+            SendGameEvent(
+                "entity-killed",
                 new Dictionary<string, object>
                 {
                     { "name", killerInfo.playerName },
@@ -626,7 +946,6 @@ namespace Takaro.WebSocket
                     { "entityType", entityType }
                 }
             );
-            SendMessage(msg);
         }
 
         #endregion
