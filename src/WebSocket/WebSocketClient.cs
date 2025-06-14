@@ -102,6 +102,14 @@ namespace Takaro.WebSocket
         public TakaroPlayerReference Player { get; set; }
     }
 
+    public class TakaroTeleportPlayerArgs
+    {
+        public TakaroPlayerReference Player { get; set; }
+        public float X { get; set; }
+        public float Y { get; set; }
+        public float Z { get; set; }
+    }
+
     public class WebSocketClient
     {
         private static WebSocketClient _instance;
@@ -369,6 +377,10 @@ namespace Takaro.WebSocket
                     case "unbanPlayer":
                         var unbanPlayerArgs = WebSocketArgs<TakaroUnbanPlayerArgs>.Parse(args);
                         HandleUnbanPlayer(requestId, unbanPlayerArgs);
+                        break;
+                    case "teleportPlayer":
+                        var teleportPlayerArgs = WebSocketArgs<TakaroTeleportPlayerArgs>.Parse(args);
+                        HandleTeleportPlayer(requestId, teleportPlayerArgs);
                         break;
                     default:
                         Log.Warning($"[Takaro] Unknown message type: {action}");
@@ -1234,6 +1246,132 @@ namespace Takaro.WebSocket
             {
                 Log.Error($"[Takaro] Error unbanning player {args.Player.GameId}: {ex.Message}");
                 SendErrorResponse(requestId, $"Failed to unban player: {ex.Message}");
+            }
+        }
+
+        private void HandleTeleportPlayer(string requestId, TakaroTeleportPlayerArgs args)
+        {
+            if (args == null || args.Player == null || string.IsNullOrEmpty(args.Player.GameId))
+            {
+                SendErrorResponse(requestId, "Invalid or missing gameId parameter");
+                return;
+            }
+
+            try
+            {
+                ClientInfo cInfo = Shared.GetClientInfoFromGameId(args.Player.GameId);
+                if (cInfo == null)
+                {
+                    SendErrorResponse(requestId, "Player not found");
+                    return;
+                }
+
+                // Get the player entity
+                if (!GameManager.Instance.World.Players.dict.TryGetValue(cInfo.entityId, out EntityPlayer player))
+                {
+                    SendErrorResponse(requestId, "Player entity not found");
+                    return;
+                }
+
+                // Validate player state
+                if (!player.IsSpawned())
+                {
+                    SendErrorResponse(requestId, "Player is not spawned");
+                    return;
+                }
+
+                if (player.IsDead())
+                {
+                    SendErrorResponse(requestId, "Player is dead");
+                    return;
+                }
+
+                // Validate coordinates
+                Vector3 targetPosition = new Vector3(args.X, args.Y, args.Z);
+
+                // Check world bounds using the same logic as ServerTools
+                CheckWorldBounds(cInfo, ref targetPosition);
+
+                // Log the teleportation attempt
+                Log.Out($"[Takaro] Teleporting player {cInfo.playerName} ({args.Player.GameId}) to ({args.X}, {args.Y}, {args.Z})");
+
+                // Perform the teleportation using the network packet system (like ServerTools)
+                cInfo.SendPackage(NetPackageManager.GetPackage<NetPackageTeleportPlayer>().Setup(
+                    targetPosition, null, false));
+
+                Log.Out($"[Takaro] Successfully teleported player {cInfo.playerName} to ({targetPosition.x}, {targetPosition.y}, {targetPosition.z})");
+
+                WebSocketMessage message = WebSocketMessage.Create(
+                    WebSocketMessage.MessageTypes.Response,
+                    new Dictionary<string, object> 
+                    {
+                        { "success", true },
+                        { "playerName", cInfo.playerName },
+                        { "x", targetPosition.x },
+                        { "y", targetPosition.y },
+                        { "z", targetPosition.z }
+                    },
+                    requestId
+                );
+                SendMessage(message);
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"[Takaro] Error teleporting player {args.Player.GameId}: {ex.Message}");
+                SendErrorResponse(requestId, $"Failed to teleport player: {ex.Message}");
+            }
+        }
+
+        private void CheckWorldBounds(ClientInfo cInfo, ref Vector3 position)
+        {
+            float x = position.x;
+            float z = position.z;
+            float positiveX, positiveY, negativeX, negativeY;
+
+            string gameWorld = GamePrefs.GetString(EnumGamePrefs.GameWorld);
+            if (gameWorld.ToLower() == "navezgane")
+            {
+                positiveX = 3000;
+                positiveY = 3000;
+                negativeX = -3000;
+                negativeY = -3000;
+            }
+            else
+            {
+                IChunkProvider chunkProvider = GameManager.Instance.World.ChunkCache.ChunkProvider;
+                positiveX = chunkProvider.GetWorldSize().x;
+                positiveY = chunkProvider.GetWorldSize().y;
+                negativeX = chunkProvider.GetWorldSize().x * -1;
+                negativeY = chunkProvider.GetWorldSize().y * -1;
+            }
+
+            bool outside = false;
+            if (x >= positiveX)
+            {
+                outside = true;
+                x = positiveX - 10;
+            }
+            else if (x <= negativeX)
+            {
+                outside = true;
+                x = negativeX + 10;
+            }
+
+            if (z >= positiveY)
+            {
+                outside = true;
+                z = positiveY - 10;
+            }
+            else if (z <= negativeY)
+            {
+                outside = true;
+                z = negativeY + 10;
+            }
+
+            if (outside)
+            {
+                Log.Warning($"[Takaro] Teleport coordinates ({position.x}, {position.z}) were outside world bounds, adjusted to ({x}, {z})");
+                position = new Vector3(x, position.y, z);
             }
         }
 
