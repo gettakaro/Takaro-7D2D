@@ -1493,22 +1493,61 @@ namespace Takaro.WebSocket
             );
         }
 
-        public void SendEntityKilled(ClientInfo killerInfo, string entityName, string entityType)
+        public void SendEntityKilled(ClientInfo killerInfo, string entityName, string entityType, string weapon = null)
         {
             if (killerInfo == null)
                 return;
 
-            SendGameEvent(
-                "entity-killed",
-                new Dictionary<string, object>
-                {
-                    { "name", killerInfo.playerName },
-                    { "entityId", killerInfo.entityId.ToString() },
-                    { "platformId", killerInfo.PlatformId.ToString() },
-                    { "entityName", entityName },
-                    { "entityType", entityType }
+            var eventData = new Dictionary<string, object>
+            {
+                { "player", Shared.TransformClientInfoToTakaroPlayer(killerInfo) },
+                { "entity", entityType }
+            };
+
+            // Add weapon information if available
+            if (!string.IsNullOrEmpty(weapon))
+            {
+                eventData["weapon"] = weapon;
+            }
+
+            SendGameEvent("entity-killed", eventData);
+        }
+
+        public void SendPlayerDeath(ClientInfo deadPlayerInfo, ClientInfo attackerInfo, Vector3 deathPosition)
+        {
+            if (deadPlayerInfo == null)
+                return;
+
+            var eventData = new Dictionary<string, object>
+            {
+                { "player", Shared.TransformClientInfoToTakaroPlayer(deadPlayerInfo) },
+                { "position", new Dictionary<string, object>
+                    {
+                        { "x", deathPosition.x },
+                        { "y", deathPosition.y },
+                        { "z", deathPosition.z }
+                    }
                 }
-            );
+            };
+
+            // Add attacker information if available
+            if (attackerInfo != null)
+            {
+                eventData["attacker"] = Shared.TransformClientInfoToTakaroPlayer(attackerInfo);
+            }
+
+            SendGameEvent("player-death", eventData);
+        }
+
+        public void SendLogEvent(string logMessage)
+        {
+            if (string.IsNullOrEmpty(logMessage))
+                return;
+
+            SendGameEvent("log", new Dictionary<string, object>
+            {
+                { "msg", logMessage }
+            });
         }
 
         #endregion
