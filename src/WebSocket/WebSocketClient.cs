@@ -79,10 +79,27 @@ namespace Takaro.WebSocket
         public string GameId { get; set; }
     }
 
-    public class TakaroKickPlayerArgs
+    public class TakaroPlayerReference
     {
         public string GameId { get; set; }
+    }
+
+    public class TakaroKickPlayerArgs
+    {
+        public TakaroPlayerReference Player { get; set; }
         public string Reason { get; set; }
+    }
+
+    public class TakaroBanPlayerArgs
+    {
+        public TakaroPlayerReference Player { get; set; }
+        public string Reason { get; set; }
+        public string ExpiresAt { get; set; }
+    }
+
+    public class TakaroUnbanPlayerArgs
+    {
+        public TakaroPlayerReference Player { get; set; }
     }
 
     public class WebSocketClient
@@ -344,6 +361,14 @@ namespace Takaro.WebSocket
                     case "kickPlayer":
                         var kickPlayerArgs = WebSocketArgs<TakaroKickPlayerArgs>.Parse(args);
                         HandleKickPlayer(requestId, kickPlayerArgs);
+                        break;
+                    case "banPlayer":
+                        var banPlayerArgs = WebSocketArgs<TakaroBanPlayerArgs>.Parse(args);
+                        HandleBanPlayer(requestId, banPlayerArgs);
+                        break;
+                    case "unbanPlayer":
+                        var unbanPlayerArgs = WebSocketArgs<TakaroUnbanPlayerArgs>.Parse(args);
+                        HandleUnbanPlayer(requestId, unbanPlayerArgs);
                         break;
                     default:
                         Log.Warning($"[Takaro] Unknown message type: {action}");
@@ -661,41 +686,109 @@ namespace Takaro.WebSocket
 
         private void HandleListBans(string requestId)
         {
-            // TODO: This currently only works for EOS IDs
-            // It should be smarter and fetch data from persistent player data somehow
-            // But I dunno how to do that, and I just want this to reply with _some_ data for now :) 
             List<TakaroBan> bans = new List<TakaroBan>();
-            PersistentPlayerList playerList = GameManager.Instance.GetPersistentPlayerList();
-            foreach (var ban in GameManager.Instance.adminTools.Blacklist.GetBanned())
+            
+            try
             {
-                if(!ban.UserIdentifier.CombinedString.StartsWith("EOS_")) continue;
-                PersistentPlayerData playerData = playerList.GetPlayerData(ban.UserIdentifier);
-                if (playerData == null) continue;
-
-
-                TakaroPlayer takaroPlayer = new TakaroPlayer
+                // Try modern BlockedPlayerList first, fallback to AdminTools
+                if (Platform.BlockedPlayerList.Instance != null)
                 {
-                    GameId = ban.UserIdentifier.CombinedString.Replace("EOS_", ""),
-                    Name = playerData.PlayerName.playerName.Text,
-                    EpicOnlineServicesId = ban.UserIdentifier.CombinedString.Replace("EOS_", ""),
-                };
+                    // Get all blocked players using the proper BlockedPlayerList API
+                    foreach (var blockedEntry in Platform.BlockedPlayerList.Instance.GetEntriesOrdered(true, false))
+                    {
+                        if (blockedEntry?.PlayerData == null) continue;
 
+                        TakaroPlayer takaroPlayer = new TakaroPlayer
+                        {
+                            // Use the CrossPlatform ID as the primary GameId (without EOS_ prefix)
+                            GameId = blockedEntry.PlayerData.PrimaryId.CombinedString.Replace("EOS_", ""),
+                            Name = blockedEntry.PlayerData.PlayerName.Text
+                        };
 
-                TakaroBan takaroBan = new TakaroBan
+                        // Set platform-specific IDs based on the platform type
+                        string primaryId = blockedEntry.PlayerData.PrimaryId.CombinedString;
+                        if (primaryId.StartsWith("EOS_"))
+                        {
+                            takaroPlayer.EpicOnlineServicesId = primaryId.Replace("EOS_", "");
+                        }
+
+                        // Check if there's a different native platform ID
+                        if (blockedEntry.PlayerData.NativeId != null && 
+                            blockedEntry.PlayerData.NativeId.CombinedString != primaryId)
+                        {
+                            string nativeId = blockedEntry.PlayerData.NativeId.CombinedString;
+                            if (nativeId.StartsWith("Steam_"))
+                            {
+                                takaroPlayer.SteamId = nativeId.Replace("Steam_", "");
+                            }
+                            else if (nativeId.StartsWith("XBL_"))
+                            {
+                                takaroPlayer.XboxLiveId = nativeId.Replace("XBL_", "");
+                            }
+                        }
+
+                        TakaroBan takaroBan = new TakaroBan
+                        {
+                            Player = takaroPlayer,
+                            Reason = "Blocked", // BlockedPlayerList doesn't store reasons, use default
+                            ExpiresAt = null // BlockedPlayerList doesn't store expiration, permanent bans
+                        };
+                        bans.Add(takaroBan);
+                    }
+                }
+                else
                 {
-                    Player = takaroPlayer,
-                    Reason = ban.BanReason,
-                    ExpiresAt = ban.BannedUntil.ToString("o")
-                };
-                bans.Add(takaroBan);
+                    // Fallback to AdminTools blacklist system
+                    PersistentPlayerList playerList = GameManager.Instance.GetPersistentPlayerList();
+                    foreach (var ban in GameManager.Instance.adminTools.Blacklist.GetBanned())
+                    {
+                        // Support all platform types, not just EOS
+                        PersistentPlayerData playerData = playerList.GetPlayerData(ban.UserIdentifier);
+                        if (playerData == null) continue;
+
+                        TakaroPlayer takaroPlayer = new TakaroPlayer
+                        {
+                            GameId = ban.UserIdentifier.CombinedString.Replace("EOS_", ""),
+                            Name = playerData.PlayerName.playerName.Text
+                        };
+
+                        // Set platform-specific IDs
+                        string platformId = ban.UserIdentifier.CombinedString;
+                        if (platformId.StartsWith("EOS_"))
+                        {
+                            takaroPlayer.EpicOnlineServicesId = platformId.Replace("EOS_", "");
+                        }
+                        else if (platformId.StartsWith("Steam_"))
+                        {
+                            takaroPlayer.SteamId = platformId.Replace("Steam_", "");
+                        }
+                        else if (platformId.StartsWith("XBL_"))
+                        {
+                            takaroPlayer.XboxLiveId = platformId.Replace("XBL_", "");
+                        }
+
+                        TakaroBan takaroBan = new TakaroBan
+                        {
+                            Player = takaroPlayer,
+                            Reason = ban.BanReason,
+                            ExpiresAt = ban.BannedUntil.ToString("o")
+                        };
+                        bans.Add(takaroBan);
+                    }
+                }
+
+                WebSocketMessage message = WebSocketMessage.Create(
+                    WebSocketMessage.MessageTypes.Response,
+                    bans.ToArray(),
+                    requestId
+                );
+                SendMessage(message);
             }
-
-            WebSocketMessage message = WebSocketMessage.Create(
-                WebSocketMessage.MessageTypes.Response,
-                bans.ToArray(),
-                requestId
-            );
-            SendMessage(message);
+            catch (Exception ex)
+            {
+                Log.Error($"[Takaro] Error listing bans: {ex.Message}");
+                SendErrorResponse(requestId, $"Failed to list bans: {ex.Message}");
+            }
         }
 
         private void HandleGiveItem(string requestId, TakaroGiveItemArgs args)
@@ -859,13 +952,13 @@ namespace Takaro.WebSocket
 
         private void HandleKickPlayer(string requestId, TakaroKickPlayerArgs args)
         {
-            if (args == null || string.IsNullOrEmpty(args.GameId))
+            if (args == null || args.Player == null || string.IsNullOrEmpty(args.Player.GameId))
             {
                 SendErrorResponse(requestId, "Invalid or missing gameId parameter");
                 return;
             }
 
-            ClientInfo cInfo = Shared.GetClientInfoFromGameId(args.GameId);
+            ClientInfo cInfo = Shared.GetClientInfoFromGameId(args.Player.GameId);
             if (cInfo == null)
             {
                 SendErrorResponse(requestId, "Player not found");
@@ -888,7 +981,7 @@ namespace Takaro.WebSocket
 
                 GameUtils.KickPlayerForClientInfo(cInfo, kickData);
 
-                Log.Out($"[Takaro] Kicked player {cInfo.playerName} ({args.GameId}): {kickReason}");
+                Log.Out($"[Takaro] Kicked player {cInfo.playerName} ({args.Player.GameId}): {kickReason}");
 
                 WebSocketMessage message = WebSocketMessage.Create(
                     WebSocketMessage.MessageTypes.Response,
@@ -904,8 +997,243 @@ namespace Takaro.WebSocket
             }
             catch (Exception ex)
             {
-                Log.Error($"[Takaro] Error kicking player {args.GameId}: {ex.Message}");
+                Log.Error($"[Takaro] Error kicking player {args.Player.GameId}: {ex.Message}");
                 SendErrorResponse(requestId, $"Failed to kick player: {ex.Message}");
+            }
+        }
+
+        private void HandleBanPlayer(string requestId, TakaroBanPlayerArgs args)
+        {
+            if (args == null || args.Player == null || string.IsNullOrEmpty(args.Player.GameId))
+            {
+                SendErrorResponse(requestId, "Invalid or missing gameId parameter");
+                return;
+            }
+
+            try
+            {
+                // First, try to find if the player is currently online
+                ClientInfo cInfo = Shared.GetClientInfoFromGameId(args.Player.GameId);
+                
+                // Get persistent player data - this works for both online and offline players
+                PlatformUserIdentifierAbs userId = PlatformUserIdentifierAbs.FromCombinedString($"EOS_{args.Player.GameId}");
+                PersistentPlayerList playerList = GameManager.Instance.GetPersistentPlayerList();
+                PersistentPlayerData playerData = playerList.GetPlayerData(userId);
+                
+                if (playerData == null)
+                {
+                    SendErrorResponse(requestId, "Player not found in persistent data");
+                    return;
+                }
+
+                string playerName = playerData.PlayerName.playerName.Text;
+                string banReason = string.IsNullOrEmpty(args.Reason) ? "Banned by admin" : args.Reason;
+                
+                // Parse the expiration date from args
+                DateTime banUntil = DateTime.MaxValue; // Default to permanent ban
+                if (!string.IsNullOrEmpty(args.ExpiresAt))
+                {
+                    try
+                    {
+                        // Parse ISO 8601 date format
+                        banUntil = DateTime.Parse(args.ExpiresAt, null, System.Globalization.DateTimeStyles.RoundtripKind);
+                        // Ensure the date is in UTC
+                        if (banUntil.Kind != DateTimeKind.Utc)
+                        {
+                            banUntil = banUntil.ToUniversalTime();
+                        }
+                        Log.Out($"[Takaro] Parsed ban expiration date: {banUntil:o}");
+                    }
+                    catch (Exception parseEx)
+                    {
+                        Log.Warning($"[Takaro] Failed to parse ban expiration date '{args.ExpiresAt}': {parseEx.Message}. Using permanent ban.");
+                        banUntil = DateTime.MaxValue;
+                    }
+                }
+                
+                bool banSuccess = false;
+                string banMethod = "";
+
+                // Use AdminTools.Blacklist for timed bans, BlockedPlayerList for permanent bans
+                if (banUntil != DateTime.MaxValue)
+                {
+                    // Timed ban - must use AdminTools.Blacklist (BlockedPlayerList doesn't support expiration)
+                    try
+                    {
+                        GameManager.Instance.adminTools.Blacklist.AddBan("Admin Ban", userId, banUntil, banReason);
+                        banSuccess = true;
+                        banMethod = "AdminTools.Blacklist (timed)";
+                    }
+                    catch (Exception adminEx)
+                    {
+                        Log.Warning($"[Takaro] AdminTools blacklist failed for timed ban: {adminEx.Message}");
+                    }
+                }
+                else if (Platform.BlockedPlayerList.Instance != null)
+                {
+                    // Permanent ban - try modern BlockedPlayerList first
+                    var listEntry = Platform.BlockedPlayerList.Instance.AddOrUpdatePlayer(
+                        playerData.PlayerData, 
+                        DateTime.UtcNow, 
+                        true, // blocked = true
+                        false // ignoreLimit = false
+                    );
+
+                    if (listEntry != null)
+                    {
+                        banSuccess = true;
+                        banMethod = "BlockedPlayerList (permanent)";
+                    }
+                }
+                
+                if (!banSuccess)
+                {
+                    // Final fallback to AdminTools blacklist system
+                    try
+                    {
+                        GameManager.Instance.adminTools.Blacklist.AddBan("Admin Ban", userId, banUntil, banReason);
+                        banSuccess = true;
+                        banMethod = "AdminTools.Blacklist";
+                    }
+                    catch (Exception adminEx)
+                    {
+                        Log.Warning($"[Takaro] AdminTools blacklist failed: {adminEx.Message}");
+                    }
+                }
+
+                if (!banSuccess)
+                {
+                    SendErrorResponse(requestId, "Failed to ban player - both BlockedPlayerList and AdminTools unavailable");
+                    return;
+                }
+
+                // If player is currently online, kick them immediately
+                if (cInfo != null)
+                {
+                    var kickData = new GameUtils.KickPlayerData(
+                        GameUtils.EKickReason.ManualKick,
+                        0,
+                        default(DateTime),
+                        banReason
+                    );
+                    GameUtils.KickPlayerForClientInfo(cInfo, kickData);
+                }
+
+                Log.Out($"[Takaro] Banned player {playerName} ({args.Player.GameId}) using {banMethod}: {banReason}, expires: {(banUntil == DateTime.MaxValue ? "never" : banUntil.ToString("o"))}");
+
+                WebSocketMessage message = WebSocketMessage.Create(
+                    WebSocketMessage.MessageTypes.Response,
+                    new Dictionary<string, object> 
+                    {
+                        { "success", true },
+                        { "playerName", playerName },
+                        { "reason", banReason },
+                        { "wasOnline", cInfo != null },
+                        { "method", banMethod },
+                        { "expiresAt", banUntil == DateTime.MaxValue ? null : banUntil.ToString("o") }
+                    },
+                    requestId
+                );
+                SendMessage(message);
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"[Takaro] Error banning player {args.Player.GameId}: {ex.Message}");
+                SendErrorResponse(requestId, $"Failed to ban player: {ex.Message}");
+            }
+        }
+
+        private void HandleUnbanPlayer(string requestId, TakaroUnbanPlayerArgs args)
+        {
+            if (args == null || args.Player == null || string.IsNullOrEmpty(args.Player.GameId))
+            {
+                SendErrorResponse(requestId, "Invalid or missing gameId parameter");
+                return;
+            }
+
+            try
+            {
+                PlatformUserIdentifierAbs userId = PlatformUserIdentifierAbs.FromCombinedString($"EOS_{args.Player.GameId}");
+                bool unbanSuccess = false;
+                string playerName = "";
+                string unbanMethod = "";
+
+                // Try modern BlockedPlayerList first, fallback to AdminTools
+                if (Platform.BlockedPlayerList.Instance != null)
+                {
+                    var blockedEntry = Platform.BlockedPlayerList.Instance.GetPlayerStateInfo(userId);
+                    
+                    if (blockedEntry != null && blockedEntry.Blocked)
+                    {
+                        // Use the SetBlockState method to unban the player
+                        var result = blockedEntry.SetBlockState(false);
+                        
+                        if (result.Item1) // result.Item1 is success bool
+                        {
+                            unbanSuccess = true;
+                            playerName = blockedEntry.PlayerData.PlayerName.Text;
+                            unbanMethod = "BlockedPlayerList";
+                        }
+                    }
+                }
+                
+                if (!unbanSuccess)
+                {
+                    // Fallback to AdminTools blacklist system
+                    try
+                    {
+                        // Check if player is banned in AdminTools blacklist
+                        DateTime bannedUntil;
+                        string banReason;
+                        if (GameManager.Instance.adminTools.Blacklist.IsBanned(userId, out bannedUntil, out banReason))
+                        {
+                            GameManager.Instance.adminTools.Blacklist.RemoveBan(userId);
+                            unbanSuccess = true;
+                            unbanMethod = "AdminTools.Blacklist";
+                            
+                            // Get player name from persistent data
+                            PersistentPlayerList playerList = GameManager.Instance.GetPersistentPlayerList();
+                            PersistentPlayerData playerData = playerList.GetPlayerData(userId);
+                            if (playerData != null)
+                            {
+                                playerName = playerData.PlayerName.playerName.Text;
+                            }
+                            else
+                            {
+                                playerName = $"Player_{args.Player.GameId}";
+                            }
+                        }
+                    }
+                    catch (Exception adminEx)
+                    {
+                        Log.Warning($"[Takaro] AdminTools unban failed: {adminEx.Message}");
+                    }
+                }
+
+                if (!unbanSuccess)
+                {
+                    SendErrorResponse(requestId, "Player not found in ban list or failed to unban");
+                    return;
+                }
+
+                Log.Out($"[Takaro] Unbanned player {playerName} ({args.Player.GameId}) using {unbanMethod}");
+
+                WebSocketMessage message = WebSocketMessage.Create(
+                    WebSocketMessage.MessageTypes.Response,
+                    new Dictionary<string, object> 
+                    {
+                        { "success", true },
+                        { "playerName", playerName },
+                        { "method", unbanMethod }
+                    },
+                    requestId
+                );
+                SendMessage(message);
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"[Takaro] Error unbanning player {args.Player.GameId}: {ex.Message}");
+                SendErrorResponse(requestId, $"Failed to unban player: {ex.Message}");
             }
         }
 
