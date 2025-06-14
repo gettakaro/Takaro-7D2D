@@ -110,6 +110,7 @@ namespace Takaro.WebSocket
         public float Z { get; set; }
     }
 
+
     public class WebSocketClient
     {
         private static WebSocketClient _instance;
@@ -360,7 +361,7 @@ namespace Takaro.WebSocket
                         break;
                     case "executeConsoleCommand":
                         var executeCommandArgs = WebSocketArgs<TakaroExecuteCommandArgs>.Parse(args);
-                        HandleExecuteCommand(requestId, executeCommandArgs);
+                        _ = HandleExecuteCommand(requestId, executeCommandArgs);
                         break;
                     case "sendMessage":
                         var sendMessageArgs = WebSocketArgs<TakaroSendMessageArgs>.Parse(args);
@@ -381,6 +382,9 @@ namespace Takaro.WebSocket
                     case "teleportPlayer":
                         var teleportPlayerArgs = WebSocketArgs<TakaroTeleportPlayerArgs>.Parse(args);
                         HandleTeleportPlayer(requestId, teleportPlayerArgs);
+                        break;
+                    case "shutdown":
+                        _ = HandleShutdown(requestId);
                         break;
                     default:
                         Log.Warning($"[Takaro] Unknown message type: {action}");
@@ -1372,6 +1376,38 @@ namespace Takaro.WebSocket
             {
                 Log.Warning($"[Takaro] Teleport coordinates ({position.x}, {position.z}) were outside world bounds, adjusted to ({x}, {z})");
                 position = new Vector3(x, position.y, z);
+            }
+        }
+
+        private async Task HandleShutdown(string requestId)
+        {
+            try
+            {
+                // Use spec-compliant defaults: 1 minute delay with generic reason
+                int delayMinutes = 1;
+                string reason = "Server shutdown requested";
+
+                // Use the proper vanilla 7D2D shutdown command instead of non-existent stopserver
+                string shutdownCommand = $"shutdown {delayMinutes}";
+                
+                Log.Out($"[Takaro] Initiating server shutdown in {delayMinutes} minute(s): {reason}");
+
+                // Execute the shutdown command asynchronously
+                var tcs = new TaskCompletionSource<string>();
+                var cr = new CommandResult(shutdownCommand, tcs);
+                SdtdConsole.Instance.ExecuteAsync(shutdownCommand, cr);
+                string result = await tcs.Task;
+
+                Log.Out($"[Takaro] Shutdown command executed successfully. Server will shutdown in {delayMinutes} minute(s)");
+
+                // Return null payload as per Takaro specification
+                WebSocketMessage message = WebSocketMessage.CreateResponse(requestId, null);
+                SendMessage(message);
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"[Takaro] Error executing shutdown command: {ex.Message}");
+                SendErrorResponse(requestId, $"Failed to initiate shutdown: {ex.Message}");
             }
         }
 
