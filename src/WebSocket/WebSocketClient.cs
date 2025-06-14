@@ -1383,14 +1383,13 @@ namespace Takaro.WebSocket
         {
             try
             {
-                // Use spec-compliant defaults: 1 minute delay with generic reason
-                int delayMinutes = 1;
+                // Use vanilla 7D2D shutdown command (no delay parameter in vanilla)
                 string reason = "Server shutdown requested";
 
-                // Use the proper vanilla 7D2D shutdown command instead of non-existent stopserver
-                string shutdownCommand = $"shutdown {delayMinutes}";
+                // Use the proper vanilla 7D2D shutdown command
+                string shutdownCommand = "shutdown";
                 
-                Log.Out($"[Takaro] Initiating server shutdown in {delayMinutes} minute(s): {reason}");
+                Log.Out($"[Takaro] Initiating immediate server shutdown: {reason}");
 
                 // Execute the shutdown command asynchronously
                 var tcs = new TaskCompletionSource<string>();
@@ -1398,7 +1397,7 @@ namespace Takaro.WebSocket
                 SdtdConsole.Instance.ExecuteAsync(shutdownCommand, cr);
                 string result = await tcs.Task;
 
-                Log.Out($"[Takaro] Shutdown command executed successfully. Server will shutdown in {delayMinutes} minute(s)");
+                Log.Out($"[Takaro] Shutdown command executed successfully. Server will shutdown immediately");
 
                 // Return null payload as per Takaro specification
                 WebSocketMessage message = WebSocketMessage.CreateResponse(requestId, null);
