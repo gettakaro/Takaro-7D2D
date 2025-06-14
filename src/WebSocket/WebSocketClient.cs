@@ -79,6 +79,12 @@ namespace Takaro.WebSocket
         public string GameId { get; set; }
     }
 
+    public class TakaroKickPlayerArgs
+    {
+        public string GameId { get; set; }
+        public string Reason { get; set; }
+    }
+
     public class WebSocketClient
     {
         private static WebSocketClient _instance;
@@ -334,6 +340,10 @@ namespace Takaro.WebSocket
                     case "sendMessage":
                         var sendMessageArgs = WebSocketArgs<TakaroSendMessageArgs>.Parse(args);
                         HandleSendMessage(requestId, sendMessageArgs);
+                        break;
+                    case "kickPlayer":
+                        var kickPlayerArgs = WebSocketArgs<TakaroKickPlayerArgs>.Parse(args);
+                        HandleKickPlayer(requestId, kickPlayerArgs);
                         break;
                     default:
                         Log.Warning($"[Takaro] Unknown message type: {action}");
@@ -845,6 +855,58 @@ namespace Takaro.WebSocket
                 requestId
             );
             SendMessage(message);
+        }
+
+        private void HandleKickPlayer(string requestId, TakaroKickPlayerArgs args)
+        {
+            if (args == null || string.IsNullOrEmpty(args.GameId))
+            {
+                SendErrorResponse(requestId, "Invalid or missing gameId parameter");
+                return;
+            }
+
+            ClientInfo cInfo = Shared.GetClientInfoFromGameId(args.GameId);
+            if (cInfo == null)
+            {
+                SendErrorResponse(requestId, "Player not found");
+                return;
+            }
+
+            // Prepare kick reason - default to "Kicked by admin" if no reason provided
+            string kickReason = string.IsNullOrEmpty(args.Reason) ? "Kicked by admin" : args.Reason;
+
+            try
+            {
+                // Use GameUtils.KickPlayerForClientInfo as discovered from decompiled code
+                // This follows the same pattern as the console kick command
+                var kickData = new GameUtils.KickPlayerData(
+                    GameUtils.EKickReason.ManualKick,
+                    0,
+                    default(DateTime),
+                    kickReason
+                );
+
+                GameUtils.KickPlayerForClientInfo(cInfo, kickData);
+
+                Log.Out($"[Takaro] Kicked player {cInfo.playerName} ({args.GameId}): {kickReason}");
+
+                WebSocketMessage message = WebSocketMessage.Create(
+                    WebSocketMessage.MessageTypes.Response,
+                    new Dictionary<string, object> 
+                    {
+                        { "success", true },
+                        { "playerName", cInfo.playerName },
+                        { "reason", kickReason }
+                    },
+                    requestId
+                );
+                SendMessage(message);
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"[Takaro] Error kicking player {args.GameId}: {ex.Message}");
+                SendErrorResponse(requestId, $"Failed to kick player: {ex.Message}");
+            }
         }
 
         #endregion
