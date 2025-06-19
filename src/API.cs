@@ -20,7 +20,6 @@ namespace Takaro
             // Register event handlers
             ModEvents.GameStartDone.RegisterHandler(GameAwake);
             ModEvents.GameShutdown.RegisterHandler(GameShutdown);
-            ModEvents.SavePlayerData.RegisterHandler(SavePlayerData);
             ModEvents.PlayerSpawnedInWorld.RegisterHandler(PlayerSpawnedInWorld);
             ModEvents.PlayerDisconnected.RegisterHandler(PlayerDisconnected);
             ModEvents.ChatMessage.RegisterHandler(ChatMessage);
@@ -119,11 +118,6 @@ namespace Takaro
                 Log.Out($"[Takaro] Player connected: {cInfo.playerName} ({cInfo.PlatformId})");
                 _webSocketClient?.SendPlayerConnected(cInfo);
             }
-        }
-
-        private void SavePlayerData(ClientInfo cInfo, PlayerDataFile playerDataFile)
-        {
-            // Can be used to track player stats if needed
         }
 
         private bool PlayerLogin(ClientInfo cInfo, string compatibilityVersion, StringBuilder sb)
