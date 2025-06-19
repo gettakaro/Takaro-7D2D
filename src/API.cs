@@ -31,25 +31,19 @@ namespace Takaro
             Log.Out("[Takaro] Mod initialized successfully");
         }
 
-        private bool GameMessage(
-            ClientInfo cInfo,
-            EnumGameMessages type,
-            string msg,
-            string mainName,
-            string secondaryName
-        )
+        private ModEvents.EModEventResult GameMessage(ref ModEvents.SGameMessageData data)
         {
-            return true;
+            return ModEvents.EModEventResult.Continue;
         }
 
-        private void GameAwake()
+        private void GameAwake(ref ModEvents.SGameStartDoneData data)
         {
             // Initialize WebSocket client
             _webSocketClient = WebSocketClient.Instance;
             _webSocketClient.Initialize();
         }
 
-        private void GameShutdown()
+        private void GameShutdown(ref ModEvents.SGameShutdownData data)
         {
             Log.Out("[Takaro] Game shutting down");
 
@@ -57,39 +51,39 @@ namespace Takaro
             _webSocketClient?.Shutdown();
         }
 
-        private void PlayerDisconnected(ClientInfo cInfo, bool bShutdown)
+        private void PlayerDisconnected(ref ModEvents.SPlayerDisconnectedData data)
         {
-            if (cInfo != null && !bShutdown)
+            if (data.ClientInfo != null && !data.GameShuttingDown)
             {
-                Log.Out($"[Takaro] Player disconnected: {cInfo.playerName} ({cInfo.PlatformId})");
-                _webSocketClient?.SendPlayerDisconnected(cInfo);
+                Log.Out($"[Takaro] Player disconnected: {data.ClientInfo.playerName} ({data.ClientInfo.PlatformId})");
+                _webSocketClient?.SendPlayerDisconnected(data.ClientInfo);
             }
         }
 
-        public void EntityKilled(Entity entKilled, Entity entOffender)
+        public void EntityKilled(ref ModEvents.SEntityKilledData data)
         {
-            if (entOffender != null && entKilled != null)
+            if (data.KillingEntity != null && data.KilledEntitiy != null)
             {
-                if (entOffender.entityType == EntityType.Player)
+                if (data.KillingEntity.entityType == EntityType.Player)
                 {
                     ClientInfo ci = ConsoleHelper.ParseParamIdOrName(
-                        entOffender.entityId.ToString()
+                        data.KillingEntity.entityId.ToString()
                     );
                     if (ci == null)
                         return;
-                    EntityAlive ea = entKilled as EntityAlive;
+                    EntityAlive ea = data.KilledEntitiy as EntityAlive;
                     if (ea == null)
                         return;
 
                     string entityType = "unknown";
-                    if (entKilled.entityType == EntityType.Zombie)
+                    if (data.KilledEntitiy.entityType == EntityType.Zombie)
                     {
                         entityType = "zombie";
                         Log.Out(
                             $"[Takaro] Entity killed: {ci.playerName} ({ci.PlatformId}) killed zombie {ea.EntityName}"
                         );
                     }
-                    else if (entKilled.entityType == EntityType.Animal)
+                    else if (data.KilledEntitiy.entityType == EntityType.Animal)
                     {
                         entityType = "animal";
                         Log.Out(
@@ -98,7 +92,7 @@ namespace Takaro
                     }
                     else
                     {
-                        entityType = entKilled.entityType.ToString().ToLower();
+                        entityType = data.KilledEntitiy.entityType.ToString().ToLower();
                     }
 
                     _webSocketClient?.SendEntityKilled(ci, ea.EntityName, entityType);
@@ -106,46 +100,39 @@ namespace Takaro
             }
         }
 
-        private void PlayerSpawnedInWorld(ClientInfo cInfo, RespawnType respawnReason, Vector3i pos)
+        private void PlayerSpawnedInWorld(ref ModEvents.SPlayerSpawnedInWorldData data)
         {
-            if (cInfo == null)
+            if (data.ClientInfo == null)
                 return;
 
             if (
-                respawnReason == RespawnType.JoinMultiplayer
-                || respawnReason == RespawnType.EnterMultiplayer
+                data.RespawnType == RespawnType.JoinMultiplayer
+                || data.RespawnType == RespawnType.EnterMultiplayer
             )
             {
-                Log.Out($"[Takaro] Player connected: {cInfo.playerName} ({cInfo.PlatformId})");
-                _webSocketClient?.SendPlayerConnected(cInfo);
+                Log.Out($"[Takaro] Player connected: {data.ClientInfo.playerName} ({data.ClientInfo.PlatformId})");
+                _webSocketClient?.SendPlayerConnected(data.ClientInfo);
             }
         }
 
-        private void SavePlayerData(ClientInfo cInfo, PlayerDataFile playerDataFile)
+        private void SavePlayerData(ref ModEvents.SSavePlayerDataData data)
         {
             // Can be used to track player stats if needed
         }
 
-        private bool PlayerLogin(ClientInfo cInfo, string compatibilityVersion, StringBuilder sb)
+        private ModEvents.EModEventResult PlayerLogin(ref ModEvents.SPlayerLoginData data)
         {
-            return true;
+            return ModEvents.EModEventResult.Continue;
         }
 
-        private bool ChatMessage(
-            ClientInfo cInfo,
-            EChatType type,
-            int senderId,
-            string msg,
-            string mainName,
-            List<int> recipientEntityIds
-        )
+        private ModEvents.EModEventResult ChatMessage(ref ModEvents.SChatMessageData data)
         {
-            if (cInfo != null)
+            if (data.ClientInfo != null)
             {
-                Log.Out($"[Takaro] Chat message: {cInfo.playerName}: {msg}");
-                _webSocketClient?.SendChatMessage(cInfo, type, senderId, msg, mainName, recipientEntityIds);
+                Log.Out($"[Takaro] Chat message: {data.ClientInfo.playerName}: {data.Message}");
+                _webSocketClient?.SendChatMessage(data.ClientInfo, data.ChatType, data.SenderEntityId, data.Message, data.MainName, data.RecipientEntityIds);
             }
-            return true;
+            return ModEvents.EModEventResult.Continue;
         }
     }
 }
