@@ -33,19 +33,22 @@
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ItemGroup>
     <Reference Include="0Harmony">
-      <HintPath>..\..\V1\Project7\7dtd-bin\0Harmony.dll</HintPath>
+      <HintPath>_data\7dtd-binaries\0Harmony.dll</HintPath>
     </Reference>
     <Reference Include="Assembly-CSharp">
-      <HintPath>..\..\V1\Project7\7dtd-bin\Assembly-CSharp.dll</HintPath>
+      <HintPath>_data\7dtd-binaries\Assembly-CSharp.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="Assembly-CSharp-firstpass">
-      <HintPath>..\..\V1\Project7\7dtd-bin\Assembly-CSharp-firstpass.dll</HintPath>
+      <HintPath>_data\7dtd-binaries\Assembly-CSharp-firstpass.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="com.rlabrecque.steamworks.net">
-      <HintPath>..\..\V1\Project7\7dtd-bin\com.rlabrecque.steamworks.net.dll</HintPath>
+      <HintPath>_data\7dtd-binaries\com.rlabrecque.steamworks.net.dll</HintPath>
     </Reference>
     <Reference Include="LogLibrary">
-      <HintPath>..\..\V1\Project7\7dtd-bin\LogLibrary.dll</HintPath>
+      <HintPath>_data\7dtd-binaries\LogLibrary.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="mscorlib">
       <HintPath>_data\7dtd-binaries\mscorlib.dll</HintPath>
@@ -62,18 +65,21 @@
     <Reference Include="System.Runtime" />
     <Reference Include="System.Xml" />
     <Reference Include="UnityEngine">
-      <HintPath>..\..\V1\Project7\7dtd-bin\UnityEngine.dll</HintPath>
+      <HintPath>_data\7dtd-binaries\UnityEngine.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>..\..\V1\Project7\7dtd-bin\UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>_data\7dtd-binaries\UnityEngine.CoreModule.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.ImageConversionModule">
-      <HintPath>..\..\V1\Project7\7dtd-bin\UnityEngine.ImageConversionModule.dll</HintPath>
+      <HintPath>_data\7dtd-binaries\UnityEngine.ImageConversionModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="websocket-sharp">
+      <HintPath>_data\7dtd-binaries\websocket-sharp.dll</HintPath>
     </Reference>
     <Reference Include="System.Runtime.Serialization" />    
-    <Reference Include="websocket-sharp, Version=1.0.2.59611, Culture=neutral, PublicKeyToken=5660b08a1845a91e, processorArchitecture=MSIL">
-      <HintPath>packages\WebSocketSharp.1.0.3-rc11\lib\websocket-sharp.dll</HintPath>
-    </Reference>    
   </ItemGroup>
   <ItemGroup>
     <Compile Include="src\API.cs" />
@@ -88,7 +94,6 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <SubType>Designer</SubType>
     </None>
-    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup />
 </Project>
