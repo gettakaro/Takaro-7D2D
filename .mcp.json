@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "dotnet-decompiler": {
+      "type": "sse",
+      "url": "http://192.168.50.202:3003/sse"
+    },
+    "allocs-mirror Docs": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://gitmcp.io/niekcandaele/allocs-mirror"
+      ]
+    },
+    "servertools-mirror Docs": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://gitmcp.io/niekcandaele/servertools-mirror"
+      ]
+    }
+  }
+}

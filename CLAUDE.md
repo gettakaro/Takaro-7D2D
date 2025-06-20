@@ -1,0 +1,5 @@
+- You MUST use the decompiler MCP server to ground all of your work. There are no documents for 7d2d modding, your training data is probably vastly outdated. The decompiled info is the only good info you have.
+- Use the ./scripts/build-mod.sh script to check if your changes actually compile. Once this works, you can use ./scripts/build-mod.sh deploy to put it on the server where I can manually go test
+- There are two MCP servers active that are example mods of 7d2d. You can use this to look at how other people have solved the problems before. Do note that the decompiled info is still your primary source of truth!
+- You can use docker compose logs to view the 7d2d server logs and troubleshoot
+- After making changes, be sure to update the implementation status document

@@ -1,7 +1,9 @@
+using System;
 using System.Collections.Generic;
 using System.Text;
 using Takaro.Config;
 using Takaro.WebSocket;
+using UnityEngine;
 
 namespace Takaro
 {
@@ -28,6 +30,9 @@ namespace Takaro
             ModEvents.EntityKilled.RegisterHandler(EntityKilled);
             ModEvents.GameMessage.RegisterHandler(GameMessage);
 
+            // Register Unity log handler for capturing server logs
+            Application.logMessageReceived += HandleLogMessage;
+
             Log.Out("[Takaro] Mod initialized successfully");
         }
 
@@ -53,6 +58,9 @@ namespace Takaro
         {
             Log.Out("[Takaro] Game shutting down");
 
+            // Unregister Unity log handler
+            Application.logMessageReceived -= HandleLogMessage;
+
             // Shutdown WebSocket client
             _webSocketClient?.Shutdown();
         }
@@ -68,14 +76,38 @@ namespace Takaro
 
         public void EntityKilled(Entity entKilled, Entity entOffender)
         {
-            if (entOffender != null && entKilled != null)
+            if (entKilled != null)
             {
-                if (entOffender.entityType == EntityType.Player)
+                // Handle player death events
+                if (entKilled.entityType == EntityType.Player)
                 {
-                    ClientInfo ci = ConsoleHelper.ParseParamIdOrName(
+                    ClientInfo killedPlayerInfo = ConsoleHelper.ParseParamIdOrName(
+                        entKilled.entityId.ToString()
+                    );
+                    if (killedPlayerInfo != null)
+                    {
+                        // Get killer information
+                        ClientInfo attackerInfo = null;
+                        if (entOffender != null && entOffender.entityType == EntityType.Player)
+                        {
+                            attackerInfo = ConsoleHelper.ParseParamIdOrName(
+                                entOffender.entityId.ToString()
+                            );
+                        }
+
+                        Vector3 deathPosition = entKilled.position;
+                        Log.Out($"[Takaro] Player death: {killedPlayerInfo.playerName} died at {deathPosition}");
+                        
+                        _webSocketClient?.SendPlayerDeath(killedPlayerInfo, attackerInfo, deathPosition);
+                    }
+                }
+                // Handle entity kill events (player killing something else)
+                else if (entOffender != null && entOffender.entityType == EntityType.Player)
+                {
+                    ClientInfo killerInfo = ConsoleHelper.ParseParamIdOrName(
                         entOffender.entityId.ToString()
                     );
-                    if (ci == null)
+                    if (killerInfo == null)
                         return;
                     EntityAlive ea = entKilled as EntityAlive;
                     if (ea == null)
@@ -86,14 +118,14 @@ namespace Takaro
                     {
                         entityType = "zombie";
                         Log.Out(
-                            $"[Takaro] Entity killed: {ci.playerName} ({ci.PlatformId}) killed zombie {ea.EntityName}"
+                            $"[Takaro] Entity killed: {killerInfo.playerName} ({killerInfo.PlatformId}) killed zombie {ea.EntityName}"
                         );
                     }
                     else if (entKilled.entityType == EntityType.Animal)
                     {
                         entityType = "animal";
                         Log.Out(
-                            $"[Takaro] Entity killed: {ci.playerName} ({ci.PlatformId}) killed animal {ea.EntityName}"
+                            $"[Takaro] Entity killed: {killerInfo.playerName} ({killerInfo.PlatformId}) killed animal {ea.EntityName}"
                         );
                     }
                     else
@@ -101,7 +133,27 @@ namespace Takaro
                         entityType = entKilled.entityType.ToString().ToLower();
                     }
 
-                    _webSocketClient?.SendEntityKilled(ci, ea.EntityName, entityType);
+                    // Try to get weapon information from player's held item
+                    string weapon = null;
+                    try
+                    {
+                        EntityPlayer playerEntity = entOffender as EntityPlayer;
+                        if (playerEntity != null && playerEntity.inventory != null)
+                        {
+                            ItemValue heldItemValue = playerEntity.inventory.holdingItemItemValue;
+                            if (heldItemValue != null && !heldItemValue.IsEmpty())
+                            {
+                                ItemClass itemClass = heldItemValue.ItemClass;
+                                weapon = itemClass?.GetLocalizedItemName() ?? itemClass?.GetItemName();
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning($"[Takaro] Could not get weapon info: {ex.Message}");
+                    }
+
+                    _webSocketClient?.SendEntityKilled(killerInfo, ea.EntityName, entityType, weapon);
                 }
             }
         }
@@ -146,6 +198,26 @@ namespace Takaro
                 _webSocketClient?.SendChatMessage(cInfo, type, senderId, msg, mainName, recipientEntityIds);
             }
             return true;
+        }
+
+        private void HandleLogMessage(string logString, string stackTrace, LogType type)
+        {
+            // Filter log messages to only send relevant ones to Takaro
+            // Avoid infinite loops by not sending our own Takaro log messages
+            if (string.IsNullOrEmpty(logString) || logString.Contains("[Takaro]"))
+                return;
+
+            // Only send Error and Warning level messages to reduce noise
+            if (type == LogType.Error || type == LogType.Warning)
+            {
+                string formattedMessage = $"[{type}] {logString}";
+                if (!string.IsNullOrEmpty(stackTrace) && type == LogType.Error)
+                {
+                    formattedMessage += $"\nStack Trace: {stackTrace}";
+                }
+
+                _webSocketClient?.SendLogEvent(formattedMessage);
+            }
         }
     }
 }
