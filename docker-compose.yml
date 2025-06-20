@@ -6,7 +6,7 @@ services:
     volumes:
       - ./_data/game-files:/game
     command: >
-      bash -c "/home/steam/steamcmd/steamcmd.sh +force_install_dir /game +login anonymous +app_update 294420 validate +quit"
+      bash -c "/home/steam/steamcmd/steamcmd.sh +force_install_dir /game +login anonymous -beta latest_experimental +app_update 294420 validate +quit"
 
 
   # Builder service for compiling the mod
@@ -29,7 +29,7 @@ services:
       - PUID=1000
       - PGID=1000
       - TimeZone=Europe/Brussels
-      - VERSION=latest_experimental
+      - VERSION=stable
     volumes:
       - ./_data/ServerFiles:/home/sdtdserver/serverfiles/
       - ./_data/7DaysToDie:/home/sdtdserver/.local/share/7DaysToDie/
