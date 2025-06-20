@@ -8,7 +8,8 @@ namespace Takaro.Config
     {
         private static ConfigManager _instance;
         private static readonly object _lock = new object();
-
+        private static readonly string BasePath = Directory.GetCurrentDirectory() + "/Takaro";
+        private static readonly string ConfigFilePath = Path.Combine(BasePath, "Config.xml");
         public string WebSocketUrl { get; private set; } = "wss://your-takaro-websocket-server.com";
         public string IdentityToken { get; private set; } = "";
         public string RegistrationToken { get; private set; } = "";
@@ -16,7 +17,6 @@ namespace Takaro.Config
         public int ReconnectIntervalSeconds { get; private set; } = 30;
 
         private const string DEFAULT_IDENTITY_TOKEN = "your-identity-token";
-        private string ConfigFilePath = "";
 
         private ConfigManager()
         {
@@ -39,11 +39,6 @@ namespace Takaro.Config
                 }
                 return _instance;
             }
-        }
-
-        public void SetPath(string path)
-        {
-            ConfigFilePath = Path.Combine(GameIO.GetGamePath(), path, "Config.xml");
         }
 
         public void LoadConfig()
@@ -133,7 +128,8 @@ namespace Takaro.Config
                 // Generate a new identity token for default config
                 string identityToken = GenerateUuid();
 
-                Directory.CreateDirectory(Path.GetDirectoryName(ConfigFilePath));
+                if (!Directory.Exists(BasePath))
+                    Directory.CreateDirectory(BasePath);
 
                 using (
                     XmlWriter writer = XmlWriter.Create(
