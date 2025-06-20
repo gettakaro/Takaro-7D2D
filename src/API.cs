@@ -70,36 +70,36 @@ namespace Takaro
 
         public void EntityKilled(ref ModEvents.SEntityKilledData data)
         {
-            if (entKilled != null)
+            if (data.KilledEntitiy != null)
             {
                 // Handle player death events
-                if (entKilled.entityType == EntityType.Player)
+                if (data.KilledEntitiy.entityType == EntityType.Player)
                 {
                     ClientInfo killedPlayerInfo = ConsoleHelper.ParseParamIdOrName(
-                        entKilled.entityId.ToString()
+                        data.KilledEntitiy.entityId.ToString()
                     );
                     if (killedPlayerInfo != null)
                     {
                         // Get killer information
                         ClientInfo attackerInfo = null;
-                        if (entOffender != null && entOffender.entityType == EntityType.Player)
+                        if (data.KillingEntity != null && data.KillingEntity.entityType == EntityType.Player)
                         {
                             attackerInfo = ConsoleHelper.ParseParamIdOrName(
-                                entOffender.entityId.ToString()
+                                data.KillingEntity.entityId.ToString()
                             );
                         }
 
-                        Vector3 deathPosition = entKilled.position;
+                        Vector3 deathPosition = data.KilledEntitiy.position;
                         Log.Out($"[Takaro] Player death: {killedPlayerInfo.playerName} died at {deathPosition}");
                         
                         _webSocketClient?.SendPlayerDeath(killedPlayerInfo, attackerInfo, deathPosition);
                     }
                 }
                 // Handle entity kill events (player killing something else)
-                else if (entOffender != null && entOffender.entityType == EntityType.Player)
+                else if (data.KillingEntity != null && data.KillingEntity.entityType == EntityType.Player)
                 {
                     ClientInfo killerInfo = ConsoleHelper.ParseParamIdOrName(
-                        entOffender.entityId.ToString()
+                        data.KillingEntity.entityId.ToString()
                     );
                     if (killerInfo == null)
                         return;
@@ -131,7 +131,7 @@ namespace Takaro
                     string weapon = null;
                     try
                     {
-                        EntityPlayer playerEntity = entOffender as EntityPlayer;
+                        EntityPlayer playerEntity = data.KillingEntity as EntityPlayer;
                         if (playerEntity != null && playerEntity.inventory != null)
                         {
                             ItemValue heldItemValue = playerEntity.inventory.holdingItemItemValue;
