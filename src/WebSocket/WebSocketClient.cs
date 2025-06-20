@@ -1457,7 +1457,7 @@ namespace Takaro.WebSocket
             );
         }
 
-        public void SendChatMessage(ClientInfo cInfo, EChatType type, int _senderId, string msg, string mainName, List<int> recipientEntityIds)
+        public void SendChatMessage(ClientInfo cInfo, EChatType type, int _senderId, string msg, List<int> recipientEntityIds)
         {
             if (cInfo == null) return;
 

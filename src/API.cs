@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using HarmonyLib;
 using Takaro.Config;
 using Takaro.WebSocket;
 using UnityEngine;
@@ -24,10 +25,12 @@ namespace Takaro
             ModEvents.SavePlayerData.RegisterHandler(SavePlayerData);
             ModEvents.PlayerSpawnedInWorld.RegisterHandler(PlayerSpawnedInWorld);
             ModEvents.PlayerDisconnected.RegisterHandler(PlayerDisconnected);
-            ModEvents.ChatMessage.RegisterHandler(ChatMessage);
             ModEvents.PlayerLogin.RegisterHandler(PlayerLogin);
             ModEvents.EntityKilled.RegisterHandler(EntityKilled);
             ModEvents.GameMessage.RegisterHandler(GameMessage);
+            
+            var harmony = new Harmony("com.takaro.patch");
+            harmony.PatchAll();
 
             // Register Unity log handler for capturing server logs
             Application.logMessageReceived += HandleLogMessage;
@@ -176,16 +179,6 @@ namespace Takaro
             return ModEvents.EModEventResult.Continue;
         }
 
-        private ModEvents.EModEventResult ChatMessage(ref ModEvents.SChatMessageData data)
-        {
-            if (data.ClientInfo != null)
-            {
-                Log.Out($"[Takaro] Chat message: {data.ClientInfo.playerName}: {data.Message}");
-                _webSocketClient?.SendChatMessage(data.ClientInfo, data.ChatType, data.SenderEntityId, data.Message, data.MainName, data.RecipientEntityIds);
-            }
-            return ModEvents.EModEventResult.Continue;
-        }
-
         private void HandleLogMessage(string logString, string stackTrace, LogType type)
         {
             // Filter log messages to only send relevant ones to Takaro
@@ -203,6 +196,21 @@ namespace Takaro
                 }
 
                 _webSocketClient?.SendLogEvent(formattedMessage);
+            }
+        }
+        
+        [HarmonyPatch(typeof(NetPackageChat), "ProcessPackage")]
+        public class NetPackageChat_ProcessPackage_Patch
+        {
+            private static bool Prefix(NetPackageChat __instance, World _world, GameManager _callbacks, string ___msg)
+            {
+                ClientInfo cInfo = SingletonMonoBehaviour<ConnectionManager>.Instance.Clients.ForEntityId(__instance.senderEntityId);
+                if (cInfo != null)
+                {
+                    Log.Out($"[Takaro] Chat message: {cInfo.playerName}: {___msg}");
+                    WebSocketClient.Instance?.SendChatMessage(cInfo, __instance.chatType, __instance.senderEntityId, ___msg, __instance.recipientEntityIds);
+                }
+                return true;
             }
         }
     }
