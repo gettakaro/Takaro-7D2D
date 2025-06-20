@@ -929,7 +929,7 @@ namespace Takaro.WebSocket
                     return;
                 }
 
-                cInfo.SendPackage (NetPackageManager.GetPackage<NetPackageChat> ().Setup (EChatType.Whisper, -1,args.Message, null, EMessageSender.Server));
+                cInfo.SendPackage (NetPackageManager.GetPackage<NetPackageChat> ().Setup (EChatType.Whisper, -1,args.Message, null, EMessageSender.Server, GeneratedTextManager.BbCodeSupportMode.Supported));
             // Otherwise, send a global message
             } else {
                 GameManager.Instance.ChatMessageServer(null, EChatType.Global, -1, args.Message, null, EMessageSender.Server);
@@ -1457,7 +1457,7 @@ namespace Takaro.WebSocket
             );
         }
 
-        public void SendChatMessage(ClientInfo cInfo, EChatType type, int _senderId, string msg, string mainName, List<int> recipientEntityIds)
+        public void SendChatMessage(ClientInfo cInfo, EChatType type, int _senderId, string msg, List<int> recipientEntityIds)
         {
             if (cInfo == null) return;
 

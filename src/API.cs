@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using HarmonyLib;
 using Takaro.Config;
 using Takaro.WebSocket;
 using UnityEngine;
@@ -16,7 +17,6 @@ namespace Takaro
             Log.Out("[Takaro] Initializing mod");
 
             // Initialize config
-            ConfigManager.Instance.SetPath(mod.Path);
             ConfigManager.Instance.LoadConfig();
 
             // Register event handlers
@@ -25,10 +25,12 @@ namespace Takaro
             ModEvents.SavePlayerData.RegisterHandler(SavePlayerData);
             ModEvents.PlayerSpawnedInWorld.RegisterHandler(PlayerSpawnedInWorld);
             ModEvents.PlayerDisconnected.RegisterHandler(PlayerDisconnected);
-            ModEvents.ChatMessage.RegisterHandler(ChatMessage);
             ModEvents.PlayerLogin.RegisterHandler(PlayerLogin);
             ModEvents.EntityKilled.RegisterHandler(EntityKilled);
             ModEvents.GameMessage.RegisterHandler(GameMessage);
+            
+            var harmony = new Harmony("com.takaro.patch");
+            harmony.PatchAll();
 
             // Register Unity log handler for capturing server logs
             Application.logMessageReceived += HandleLogMessage;
@@ -36,25 +38,19 @@ namespace Takaro
             Log.Out("[Takaro] Mod initialized successfully");
         }
 
-        private bool GameMessage(
-            ClientInfo cInfo,
-            EnumGameMessages type,
-            string msg,
-            string mainName,
-            string secondaryName
-        )
+        private ModEvents.EModEventResult GameMessage(ref ModEvents.SGameMessageData data)
         {
-            return true;
+            return ModEvents.EModEventResult.Continue;
         }
 
-        private void GameAwake()
+        private void GameAwake(ref ModEvents.SGameStartDoneData data)
         {
             // Initialize WebSocket client
             _webSocketClient = WebSocketClient.Instance;
             _webSocketClient.Initialize();
         }
 
-        private void GameShutdown()
+        private void GameShutdown(ref ModEvents.SGameShutdownData data)
         {
             Log.Out("[Takaro] Game shutting down");
 
@@ -65,63 +61,63 @@ namespace Takaro
             _webSocketClient?.Shutdown();
         }
 
-        private void PlayerDisconnected(ClientInfo cInfo, bool bShutdown)
+        private void PlayerDisconnected(ref ModEvents.SPlayerDisconnectedData data)
         {
-            if (cInfo != null && !bShutdown)
+            if (data.ClientInfo != null && !data.GameShuttingDown)
             {
-                Log.Out($"[Takaro] Player disconnected: {cInfo.playerName} ({cInfo.PlatformId})");
-                _webSocketClient?.SendPlayerDisconnected(cInfo);
+                Log.Out($"[Takaro] Player disconnected: {data.ClientInfo.playerName} ({data.ClientInfo.PlatformId})");
+                _webSocketClient?.SendPlayerDisconnected(data.ClientInfo);
             }
         }
 
-        public void EntityKilled(Entity entKilled, Entity entOffender)
+        public void EntityKilled(ref ModEvents.SEntityKilledData data)
         {
-            if (entKilled != null)
+            if (data.KilledEntitiy != null)
             {
                 // Handle player death events
-                if (entKilled.entityType == EntityType.Player)
+                if (data.KilledEntitiy.entityType == EntityType.Player)
                 {
                     ClientInfo killedPlayerInfo = ConsoleHelper.ParseParamIdOrName(
-                        entKilled.entityId.ToString()
+                        data.KilledEntitiy.entityId.ToString()
                     );
                     if (killedPlayerInfo != null)
                     {
                         // Get killer information
                         ClientInfo attackerInfo = null;
-                        if (entOffender != null && entOffender.entityType == EntityType.Player)
+                        if (data.KillingEntity != null && data.KillingEntity.entityType == EntityType.Player)
                         {
                             attackerInfo = ConsoleHelper.ParseParamIdOrName(
-                                entOffender.entityId.ToString()
+                                data.KillingEntity.entityId.ToString()
                             );
                         }
 
-                        Vector3 deathPosition = entKilled.position;
+                        Vector3 deathPosition = data.KilledEntitiy.position;
                         Log.Out($"[Takaro] Player death: {killedPlayerInfo.playerName} died at {deathPosition}");
                         
                         _webSocketClient?.SendPlayerDeath(killedPlayerInfo, attackerInfo, deathPosition);
                     }
                 }
                 // Handle entity kill events (player killing something else)
-                else if (entOffender != null && entOffender.entityType == EntityType.Player)
+                else if (data.KillingEntity != null && data.KillingEntity.entityType == EntityType.Player)
                 {
                     ClientInfo killerInfo = ConsoleHelper.ParseParamIdOrName(
-                        entOffender.entityId.ToString()
+                        data.KillingEntity.entityId.ToString()
                     );
                     if (killerInfo == null)
                         return;
-                    EntityAlive ea = entKilled as EntityAlive;
+                    EntityAlive ea = data.KilledEntitiy as EntityAlive;
                     if (ea == null)
                         return;
 
                     string entityType = "unknown";
-                    if (entKilled.entityType == EntityType.Zombie)
+                    if (data.KilledEntitiy.entityType == EntityType.Zombie)
                     {
                         entityType = "zombie";
                         Log.Out(
                             $"[Takaro] Entity killed: {killerInfo.playerName} ({killerInfo.PlatformId}) killed zombie {ea.EntityName}"
                         );
                     }
-                    else if (entKilled.entityType == EntityType.Animal)
+                    else if (data.KilledEntitiy.entityType == EntityType.Animal)
                     {
                         entityType = "animal";
                         Log.Out(
@@ -130,14 +126,14 @@ namespace Takaro
                     }
                     else
                     {
-                        entityType = entKilled.entityType.ToString().ToLower();
+                        entityType = data.KilledEntitiy.entityType.ToString().ToLower();
                     }
 
                     // Try to get weapon information from player's held item
                     string weapon = null;
                     try
                     {
-                        EntityPlayer playerEntity = entOffender as EntityPlayer;
+                        EntityPlayer playerEntity = data.KillingEntity as EntityPlayer;
                         if (playerEntity != null && playerEntity.inventory != null)
                         {
                             ItemValue heldItemValue = playerEntity.inventory.holdingItemItemValue;
@@ -158,46 +154,29 @@ namespace Takaro
             }
         }
 
-        private void PlayerSpawnedInWorld(ClientInfo cInfo, RespawnType respawnReason, Vector3i pos)
+        private void PlayerSpawnedInWorld(ref ModEvents.SPlayerSpawnedInWorldData data)
         {
-            if (cInfo == null)
+            if (data.ClientInfo == null)
                 return;
 
             if (
-                respawnReason == RespawnType.JoinMultiplayer
-                || respawnReason == RespawnType.EnterMultiplayer
+                data.RespawnType == RespawnType.JoinMultiplayer
+                || data.RespawnType == RespawnType.EnterMultiplayer
             )
             {
-                Log.Out($"[Takaro] Player connected: {cInfo.playerName} ({cInfo.PlatformId})");
-                _webSocketClient?.SendPlayerConnected(cInfo);
+                Log.Out($"[Takaro] Player connected: {data.ClientInfo.playerName} ({data.ClientInfo.PlatformId})");
+                _webSocketClient?.SendPlayerConnected(data.ClientInfo);
             }
         }
 
-        private void SavePlayerData(ClientInfo cInfo, PlayerDataFile playerDataFile)
+        private void SavePlayerData(ref ModEvents.SSavePlayerDataData data)
         {
             // Can be used to track player stats if needed
         }
 
-        private bool PlayerLogin(ClientInfo cInfo, string compatibilityVersion, StringBuilder sb)
+        private ModEvents.EModEventResult PlayerLogin(ref ModEvents.SPlayerLoginData data)
         {
-            return true;
-        }
-
-        private bool ChatMessage(
-            ClientInfo cInfo,
-            EChatType type,
-            int senderId,
-            string msg,
-            string mainName,
-            List<int> recipientEntityIds
-        )
-        {
-            if (cInfo != null)
-            {
-                Log.Out($"[Takaro] Chat message: {cInfo.playerName}: {msg}");
-                _webSocketClient?.SendChatMessage(cInfo, type, senderId, msg, mainName, recipientEntityIds);
-            }
-            return true;
+            return ModEvents.EModEventResult.Continue;
         }
 
         private void HandleLogMessage(string logString, string stackTrace, LogType type)
@@ -217,6 +196,21 @@ namespace Takaro
                 }
 
                 _webSocketClient?.SendLogEvent(formattedMessage);
+            }
+        }
+        
+        [HarmonyPatch(typeof(NetPackageChat), "ProcessPackage")]
+        public class NetPackageChat_ProcessPackage_Patch
+        {
+            private static bool Prefix(NetPackageChat __instance, World _world, GameManager _callbacks, string ___msg)
+            {
+                ClientInfo cInfo = SingletonMonoBehaviour<ConnectionManager>.Instance.Clients.ForEntityId(__instance.senderEntityId);
+                if (cInfo != null)
+                {
+                    Log.Out($"[Takaro] Chat message: {cInfo.playerName}: {___msg}");
+                    WebSocketClient.Instance?.SendChatMessage(cInfo, __instance.chatType, __instance.senderEntityId, ___msg, __instance.recipientEntityIds);
+                }
+                return true;
             }
         }
     }
