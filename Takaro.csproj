@@ -83,6 +83,10 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="src\API.cs" />
+    <Compile Include="src\Commands\Debug.cs" />
+    <Compile Include="src\Interfaces\IService.cs" />
+    <Compile Include="src\ServiceRegistry.cs" />
+    <Compile Include="src\Services\LogService.cs" />
     <Compile Include="src\WebSocket\WebSocketClient.cs" />
     <Compile Include="src\WebSocket\WebSocketMessage.cs" />
     <Compile Include="src\Config\ConfigManager.cs" />

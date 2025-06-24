@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
-using System.Text;
+using System.IO;
 using HarmonyLib;
 using Takaro.Config;
+using Takaro.Interfaces;
+using Takaro.Services;
 using Takaro.WebSocket;
 using UnityEngine;
 
@@ -10,16 +12,29 @@ namespace Takaro
 {
     public class API : IModApi
     {
+        private readonly List<IService> Services = new List<IService>
+        {
+            LogService.Instance
+        };
+
+        public const string ModPrefix = "Takaro";
+        public static readonly string BasePath = Directory.GetCurrentDirectory() + "/Takaro";
         private WebSocketClient _webSocketClient;
 
         public void InitMod(Mod mod)
         {
-            Log.Out("[Takaro] Initializing mod");
+            ServiceRegistry.InitServices();
+            
+            LogService.Instance.Info("Initializing mod");
+            
+            if (!Directory.Exists(BasePath))
+                Directory.CreateDirectory(BasePath);
 
             // Initialize config
             ConfigManager.Instance.LoadConfig();
 
             // Register event handlers
+            ModEvents.GameStartDone.RegisterHandler(GameStartDoneHandler);
             ModEvents.GameStartDone.RegisterHandler(GameAwake);
             ModEvents.GameShutdown.RegisterHandler(GameShutdown);
             ModEvents.SavePlayerData.RegisterHandler(SavePlayerData);
@@ -28,14 +43,17 @@ namespace Takaro
             ModEvents.PlayerLogin.RegisterHandler(PlayerLogin);
             ModEvents.EntityKilled.RegisterHandler(EntityKilled);
             ModEvents.GameMessage.RegisterHandler(GameMessage);
-            
-            var harmony = new Harmony("com.takaro.patch");
-            harmony.PatchAll();
 
             // Register Unity log handler for capturing server logs
             Application.logMessageReceived += HandleLogMessage;
 
-            Log.Out("[Takaro] Mod initialized successfully");
+            LogService.Instance.Info("Mod initialized successfully");
+        }
+        
+        private static void GameStartDoneHandler(ref ModEvents.SGameStartDoneData data)
+        {
+            var harmony = new Harmony("com.takaro.patch");
+            harmony.PatchAll();
         }
 
         private ModEvents.EModEventResult GameMessage(ref ModEvents.SGameMessageData data)
@@ -52,7 +70,7 @@ namespace Takaro
 
         private void GameShutdown(ref ModEvents.SGameShutdownData data)
         {
-            Log.Out("[Takaro] Game shutting down");
+            LogService.Instance.Info("Game shutting down");
 
             // Unregister Unity log handler
             Application.logMessageReceived -= HandleLogMessage;
@@ -65,7 +83,7 @@ namespace Takaro
         {
             if (data.ClientInfo != null && !data.GameShuttingDown)
             {
-                Log.Out($"[Takaro] Player disconnected: {data.ClientInfo.playerName} ({data.ClientInfo.PlatformId})");
+                LogService.Instance.Debug($"Player disconnected: {data.ClientInfo.playerName} ({data.ClientInfo.PlatformId})");
                 _webSocketClient?.SendPlayerDisconnected(data.ClientInfo);
             }
         }
@@ -92,7 +110,7 @@ namespace Takaro
                         }
 
                         Vector3 deathPosition = data.KilledEntitiy.position;
-                        Log.Out($"[Takaro] Player death: {killedPlayerInfo.playerName} died at {deathPosition}");
+                        LogService.Instance.Debug($"Player death: {killedPlayerInfo.playerName} died at {deathPosition}");
                         
                         _webSocketClient?.SendPlayerDeath(killedPlayerInfo, attackerInfo, deathPosition);
                     }
@@ -113,15 +131,15 @@ namespace Takaro
                     if (data.KilledEntitiy.entityType == EntityType.Zombie)
                     {
                         entityType = "zombie";
-                        Log.Out(
-                            $"[Takaro] Entity killed: {killerInfo.playerName} ({killerInfo.PlatformId}) killed zombie {ea.EntityName}"
+                        LogService.Instance.Debug(
+                            $"Entity killed: {killerInfo.playerName} ({killerInfo.PlatformId}) killed zombie {ea.EntityName}"
                         );
                     }
                     else if (data.KilledEntitiy.entityType == EntityType.Animal)
                     {
                         entityType = "animal";
-                        Log.Out(
-                            $"[Takaro] Entity killed: {killerInfo.playerName} ({killerInfo.PlatformId}) killed animal {ea.EntityName}"
+                        LogService.Instance.Debug(
+                            $"Entity killed: {killerInfo.playerName} ({killerInfo.PlatformId}) killed animal {ea.EntityName}"
                         );
                     }
                     else
@@ -146,7 +164,7 @@ namespace Takaro
                     }
                     catch (Exception ex)
                     {
-                        Log.Warning($"[Takaro] Could not get weapon info: {ex.Message}");
+                        LogService.Instance.Warn($"Could not get weapon info: {ex.Message}");
                     }
 
                     _webSocketClient?.SendEntityKilled(killerInfo, ea.EntityName, entityType, weapon);
@@ -164,7 +182,7 @@ namespace Takaro
                 || data.RespawnType == RespawnType.EnterMultiplayer
             )
             {
-                Log.Out($"[Takaro] Player connected: {data.ClientInfo.playerName} ({data.ClientInfo.PlatformId})");
+                LogService.Instance.Debug($"Player connected: {data.ClientInfo.playerName} ({data.ClientInfo.PlatformId})");
                 _webSocketClient?.SendPlayerConnected(data.ClientInfo);
             }
         }
@@ -183,7 +201,7 @@ namespace Takaro
         {
             // Filter log messages to only send relevant ones to Takaro
             // Avoid infinite loops by not sending our own Takaro log messages
-            if (string.IsNullOrEmpty(logString) || logString.Contains("[Takaro]"))
+            if (string.IsNullOrEmpty(logString) || logString.Contains($"[{ModPrefix}]"))
                 return;
 
             // Only send Error and Warning level messages to reduce noise
@@ -207,7 +225,7 @@ namespace Takaro
                 ClientInfo cInfo = SingletonMonoBehaviour<ConnectionManager>.Instance.Clients.ForEntityId(__instance.senderEntityId);
                 if (cInfo != null)
                 {
-                    Log.Out($"[Takaro] Chat message: {cInfo.playerName}: {___msg}");
+                    LogService.Instance.Debug($"Chat message: {cInfo.playerName}: {___msg}");
                     WebSocketClient.Instance?.SendChatMessage(cInfo, __instance.chatType, __instance.senderEntityId, ___msg, __instance.recipientEntityIds);
                 }
                 return true;

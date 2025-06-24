@@ -9,6 +9,7 @@ using Takaro.Config;
 using WebSocketSharp;
 using UnityEngine;
 using System.Threading.Tasks;
+using Takaro.Services;
 
 namespace Takaro.WebSocket
 {
@@ -44,7 +45,7 @@ namespace Takaro.WebSocket
             }
             catch (Exception ex)
             {
-                Log.Error($"[Takaro] Error parsing WebSocket args: {ex.Message}");
+                LogService.Instance.Error($"Error parsing WebSocket args: {ex.Message}");
                 return default;
             }
         }
@@ -154,19 +155,19 @@ namespace Takaro.WebSocket
                 var config = ConfigManager.Instance;
                 if (!config.WebSocketEnabled)
                 {
-                    Log.Out(
-                        "[Takaro] WebSocket client is disabled in config. Skipping initialization."
+                    LogService.Instance.Info(
+                        "WebSocket client is disabled in config. Skipping initialization."
                     );
                     return;
                 }
 
-                Log.Out($"[Takaro] Initializing WebSocket client to {config.WebSocketUrl}");
+                LogService.Instance.Info($"Initializing WebSocket client to {config.WebSocketUrl}");
 
                 ConnectToServer();
             }
             catch (Exception ex)
             {
-                Log.Error($"[Takaro] Error initializing WebSocket client: {ex.Message}");
+                LogService.Instance.Error($"Error initializing WebSocket client: {ex.Message}");
                 Log.Exception(ex);
             }
         }
@@ -185,7 +186,7 @@ namespace Takaro.WebSocket
                 var config = ConfigManager.Instance;
                 if (string.IsNullOrEmpty(config.WebSocketUrl))
                 {
-                    Log.Error("[Takaro] WebSocket URL is not set in config.");
+                    LogService.Instance.Error("WebSocket URL is not set in config.");
                     return;
                 }
 
@@ -195,7 +196,7 @@ namespace Takaro.WebSocket
                 {
                     _isConnected = true;
                     _reconnectAttempts = 0;
-                    Log.Out("[Takaro] WebSocket connection established");
+                    LogService.Instance.Info("WebSocket connection established");
 
                     // Send registration message
                     if (
@@ -203,8 +204,8 @@ namespace Takaro.WebSocket
                         || string.IsNullOrEmpty(config.IdentityToken)
                     )
                     {
-                        Log.Error(
-                            "[Takaro] Registration token or identity token is not set in config."
+                        LogService.Instance.Error(
+                            "Registration token or identity token is not set in config."
                         );
                         return;
                     }
@@ -226,13 +227,13 @@ namespace Takaro.WebSocket
 
                 _webSocket.OnError += (sender, e) =>
                 {
-                    Log.Error($"[Takaro] WebSocket error: {e.Message}");
+                    LogService.Instance.Error($"WebSocket error: {e.Message}");
                 };
 
                 _webSocket.OnClose += (sender, e) =>
                 {
                     _isConnected = false;
-                    Log.Out($"[Takaro] WebSocket connection closed: {e.Code} - {e.Reason}");
+                    LogService.Instance.Info($"WebSocket connection closed: {e.Code} - {e.Reason}");
 
                     StopTimers();
 
@@ -246,7 +247,7 @@ namespace Takaro.WebSocket
             }
             catch (Exception ex)
             {
-                Log.Error($"[Takaro] Error connecting to WebSocket server: {ex.Message}");
+                LogService.Instance.Error($"Error connecting to WebSocket server: {ex.Message}");
                 Log.Exception(ex);
                 ScheduleReconnect();
             }
@@ -257,7 +258,7 @@ namespace Takaro.WebSocket
         {
             try
             {
-                Log.Out($"[Takaro] Received WebSocket message: {message}");
+                LogService.Instance.Debug($"Received WebSocket message: {message}");
                 var webSocketMessage = JsonConvert.DeserializeObject<WebSocketMessage>(message);
 
                 if (webSocketMessage == null || webSocketMessage.Payload == null)
@@ -270,7 +271,7 @@ namespace Takaro.WebSocket
 
                 if (string.IsNullOrEmpty(requestId))
                 {
-                    Log.Warning("[Takaro] Received message without requestId");
+                    LogService.Instance.Warn("Received message without requestId");
                     return;
                 }
 
@@ -286,8 +287,8 @@ namespace Takaro.WebSocket
                     }
                     else
                     {
-                        Log.Warning(
-                            "[Takaro] Received message with payload that is not a dictionary"
+                        LogService.Instance.Warn(
+                            "Received message with payload that is not a dictionary"
                         );
                         return;
                     }
@@ -387,7 +388,7 @@ namespace Takaro.WebSocket
                         _ = HandleShutdown(requestId);
                         break;
                     default:
-                        Log.Warning($"[Takaro] Unknown message type: {action}");
+                        LogService.Instance.Warn($"Unknown message type: {action}");
                         SendErrorResponse(requestId, $"Unknown message type: {action}");
                         break;
                 }
@@ -402,7 +403,7 @@ namespace Takaro.WebSocket
             }
             catch (Exception ex)
             {
-                Log.Error($"[Takaro] Error handling WebSocket message: {ex.Message}");
+                LogService.Instance.Error($"Error handling WebSocket message: {ex.Message}");
                 Log.Exception(ex);
             }
         }
@@ -415,17 +416,17 @@ namespace Takaro.WebSocket
             {
                 if (_webSocket == null || !_isConnected)
                 {
-                    Log.Warning("[Takaro] Cannot send message - WebSocket not connected");
+                    LogService.Instance.Warn("Cannot send message - WebSocket not connected");
                     return;
                 }
 
                 string json = SerializeToJson(message);
-                Log.Out($"[Takaro] Sending WebSocket message: {json}");
+                LogService.Instance.Debug($"Sending WebSocket message: {json}");
                 _webSocket.Send(json);
             }
             catch (Exception ex)
             {
-                Log.Error($"[Takaro] Error sending WebSocket message: {ex.Message}");
+                LogService.Instance.Error($"Error sending WebSocket message: {ex.Message}");
                 Log.Exception(ex);
             }
         }
@@ -475,16 +476,16 @@ namespace Takaro.WebSocket
         {
             if (_reconnectAttempts >= MAX_RECONNECT_ATTEMPTS)
             {
-                Log.Error(
-                    $"[Takaro] Maximum reconnection attempts ({MAX_RECONNECT_ATTEMPTS}) reached. Giving up."
+                LogService.Instance.Error(
+                    $"Maximum reconnection attempts ({MAX_RECONNECT_ATTEMPTS}) reached. Giving up."
                 );
                 return;
             }
 
             _reconnectAttempts++;
             var interval = TimeSpan.FromSeconds(ConfigManager.Instance.ReconnectIntervalSeconds);
-            Log.Out(
-                $"[Takaro] Scheduling reconnect attempt {_reconnectAttempts} in {interval.TotalSeconds} seconds"
+            LogService.Instance.Info(
+                $"Scheduling reconnect attempt {_reconnectAttempts} in {interval.TotalSeconds} seconds"
             );
 
             _reconnectTimer = new Timer(
@@ -519,7 +520,7 @@ namespace Takaro.WebSocket
                 }
                 catch (Exception ex)
                 {
-                    Log.Error($"[Takaro] Error closing WebSocket connection: {ex.Message}");
+                    LogService.Instance.Error($"Error closing WebSocket connection: {ex.Message}");
                 }
                 finally
                 {
@@ -802,7 +803,7 @@ namespace Takaro.WebSocket
             }
             catch (Exception ex)
             {
-                Log.Error($"[Takaro] Error listing bans: {ex.Message}");
+                LogService.Instance.Error($"Error listing bans: {ex.Message}");
                 SendErrorResponse(requestId, $"Failed to list bans: {ex.Message}");
             }
         }
@@ -997,7 +998,7 @@ namespace Takaro.WebSocket
 
                 GameUtils.KickPlayerForClientInfo(cInfo, kickData);
 
-                Log.Out($"[Takaro] Kicked player {cInfo.playerName} ({args.Player.GameId}): {kickReason}");
+                LogService.Instance.Debug($"Kicked player {cInfo.playerName} ({args.Player.GameId}): {kickReason}");
 
                 WebSocketMessage message = WebSocketMessage.Create(
                     WebSocketMessage.MessageTypes.Response,
@@ -1013,7 +1014,7 @@ namespace Takaro.WebSocket
             }
             catch (Exception ex)
             {
-                Log.Error($"[Takaro] Error kicking player {args.Player.GameId}: {ex.Message}");
+                LogService.Instance.Error($"Error kicking player {args.Player.GameId}: {ex.Message}");
                 SendErrorResponse(requestId, $"Failed to kick player: {ex.Message}");
             }
         }
@@ -1058,11 +1059,11 @@ namespace Takaro.WebSocket
                         {
                             banUntil = banUntil.ToUniversalTime();
                         }
-                        Log.Out($"[Takaro] Parsed ban expiration date: {banUntil:o}");
+                        LogService.Instance.Debug($"Parsed ban expiration date: {banUntil:o}");
                     }
                     catch (Exception parseEx)
                     {
-                        Log.Warning($"[Takaro] Failed to parse ban expiration date '{args.ExpiresAt}': {parseEx.Message}. Using permanent ban.");
+                        LogService.Instance.Warn($"Failed to parse ban expiration date '{args.ExpiresAt}': {parseEx.Message}. Using permanent ban.");
                         banUntil = DateTime.MaxValue;
                     }
                 }
@@ -1082,7 +1083,7 @@ namespace Takaro.WebSocket
                     }
                     catch (Exception adminEx)
                     {
-                        Log.Warning($"[Takaro] AdminTools blacklist failed for timed ban: {adminEx.Message}");
+                        LogService.Instance.Warn($"AdminTools blacklist failed for timed ban: {adminEx.Message}");
                     }
                 }
                 else if (Platform.BlockedPlayerList.Instance != null)
@@ -1113,7 +1114,7 @@ namespace Takaro.WebSocket
                     }
                     catch (Exception adminEx)
                     {
-                        Log.Warning($"[Takaro] AdminTools blacklist failed: {adminEx.Message}");
+                        LogService.Instance.Warn($"AdminTools blacklist failed: {adminEx.Message}");
                     }
                 }
 
@@ -1135,7 +1136,7 @@ namespace Takaro.WebSocket
                     GameUtils.KickPlayerForClientInfo(cInfo, kickData);
                 }
 
-                Log.Out($"[Takaro] Banned player {playerName} ({args.Player.GameId}) using {banMethod}: {banReason}, expires: {(banUntil == DateTime.MaxValue ? "never" : banUntil.ToString("o"))}");
+                LogService.Instance.Debug($"Banned player {playerName} ({args.Player.GameId}) using {banMethod}: {banReason}, expires: {(banUntil == DateTime.MaxValue ? "never" : banUntil.ToString("o"))}");
 
                 WebSocketMessage message = WebSocketMessage.Create(
                     WebSocketMessage.MessageTypes.Response,
@@ -1154,7 +1155,7 @@ namespace Takaro.WebSocket
             }
             catch (Exception ex)
             {
-                Log.Error($"[Takaro] Error banning player {args.Player.GameId}: {ex.Message}");
+                LogService.Instance.Error($"Error banning player {args.Player.GameId}: {ex.Message}");
                 SendErrorResponse(requestId, $"Failed to ban player: {ex.Message}");
             }
         }
@@ -1222,7 +1223,7 @@ namespace Takaro.WebSocket
                     }
                     catch (Exception adminEx)
                     {
-                        Log.Warning($"[Takaro] AdminTools unban failed: {adminEx.Message}");
+                        LogService.Instance.Warn($"AdminTools unban failed: {adminEx.Message}");
                     }
                 }
 
@@ -1232,7 +1233,7 @@ namespace Takaro.WebSocket
                     return;
                 }
 
-                Log.Out($"[Takaro] Unbanned player {playerName} ({args.Player.GameId}) using {unbanMethod}");
+                LogService.Instance.Debug($"Unbanned player {playerName} ({args.Player.GameId}) using {unbanMethod}");
 
                 WebSocketMessage message = WebSocketMessage.Create(
                     WebSocketMessage.MessageTypes.Response,
@@ -1248,7 +1249,7 @@ namespace Takaro.WebSocket
             }
             catch (Exception ex)
             {
-                Log.Error($"[Takaro] Error unbanning player {args.Player.GameId}: {ex.Message}");
+                LogService.Instance.Error($"Error unbanning player {args.Player.GameId}: {ex.Message}");
                 SendErrorResponse(requestId, $"Failed to unban player: {ex.Message}");
             }
         }
@@ -1297,13 +1298,13 @@ namespace Takaro.WebSocket
                 CheckWorldBounds(cInfo, ref targetPosition);
 
                 // Log the teleportation attempt
-                Log.Out($"[Takaro] Teleporting player {cInfo.playerName} ({args.Player.GameId}) to ({args.X}, {args.Y}, {args.Z})");
+                LogService.Instance.Debug($"Teleporting player {cInfo.playerName} ({args.Player.GameId}) to ({args.X}, {args.Y}, {args.Z})");
 
                 // Perform the teleportation using the network packet system (like ServerTools)
                 cInfo.SendPackage(NetPackageManager.GetPackage<NetPackageTeleportPlayer>().Setup(
                     targetPosition, null, false));
 
-                Log.Out($"[Takaro] Successfully teleported player {cInfo.playerName} to ({targetPosition.x}, {targetPosition.y}, {targetPosition.z})");
+                LogService.Instance.Debug($"Successfully teleported player {cInfo.playerName} to ({targetPosition.x}, {targetPosition.y}, {targetPosition.z})");
 
                 WebSocketMessage message = WebSocketMessage.Create(
                     WebSocketMessage.MessageTypes.Response,
@@ -1321,7 +1322,7 @@ namespace Takaro.WebSocket
             }
             catch (Exception ex)
             {
-                Log.Error($"[Takaro] Error teleporting player {args.Player.GameId}: {ex.Message}");
+                LogService.Instance.Error($"Error teleporting player {args.Player.GameId}: {ex.Message}");
                 SendErrorResponse(requestId, $"Failed to teleport player: {ex.Message}");
             }
         }
@@ -1374,7 +1375,7 @@ namespace Takaro.WebSocket
 
             if (outside)
             {
-                Log.Warning($"[Takaro] Teleport coordinates ({position.x}, {position.z}) were outside world bounds, adjusted to ({x}, {z})");
+                LogService.Instance.Warn($"Teleport coordinates ({position.x}, {position.z}) were outside world bounds, adjusted to ({x}, {z})");
                 position = new Vector3(x, position.y, z);
             }
         }
@@ -1389,7 +1390,7 @@ namespace Takaro.WebSocket
                 // Use the proper vanilla 7D2D shutdown command
                 string shutdownCommand = "shutdown";
                 
-                Log.Out($"[Takaro] Initiating immediate server shutdown: {reason}");
+                LogService.Instance.Info($"Initiating immediate server shutdown: {reason}");
 
                 // Execute the shutdown command asynchronously
                 var tcs = new TaskCompletionSource<string>();
@@ -1397,7 +1398,7 @@ namespace Takaro.WebSocket
                 SdtdConsole.Instance.ExecuteAsync(shutdownCommand, cr);
                 string result = await tcs.Task;
 
-                Log.Out($"[Takaro] Shutdown command executed successfully. Server will shutdown immediately");
+                LogService.Instance.Info($"Shutdown command executed successfully. Server will shutdown immediately");
 
                 // Return null payload as per Takaro specification
                 WebSocketMessage message = WebSocketMessage.CreateResponse(requestId, null);
@@ -1405,7 +1406,7 @@ namespace Takaro.WebSocket
             }
             catch (Exception ex)
             {
-                Log.Error($"[Takaro] Error executing shutdown command: {ex.Message}");
+                LogService.Instance.Error($"Error executing shutdown command: {ex.Message}");
                 SendErrorResponse(requestId, $"Failed to initiate shutdown: {ex.Message}");
             }
         }
