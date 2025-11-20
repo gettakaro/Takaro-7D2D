@@ -19,7 +19,7 @@ jobs:
           private_key: ${{ secrets.TAKARO_CI_APP_PRIV_KEY }}
           
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           token: ${{ steps.generate_token.outputs.token }}
           
