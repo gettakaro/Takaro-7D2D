@@ -36,7 +36,7 @@ jobs:
           cp -r _data/build/Mods/Takaro/* ./dist/
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4.6.2
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: takaro-mod
           path: ./dist
@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download artifact
-        uses: actions/download-artifact@v4.3.0
+        uses: actions/download-artifact@v8.0.1
         with:
           name: takaro-mod
           path: ./dist
