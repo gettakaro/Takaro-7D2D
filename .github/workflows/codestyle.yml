@@ -13,18 +13,18 @@ jobs:
     steps:
       - name: Generate token
         id: generate_token
-        uses: tibdex/github-app-token@v2
+        uses: tibdex/github-app-token@v2.1.0
         with:
           app_id: ${{ secrets.TAKARO_CI_APP_ID }}
           private_key: ${{ secrets.TAKARO_CI_APP_PRIV_KEY }}
           
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.3.1
         with:
           token: ${{ steps.generate_token.outputs.token }}
           
       - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v4.3.1
         
       - name: Install CSharpier
         run: dotnet tool restore
